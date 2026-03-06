@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.cc.qylgjavaservice.mapper.ArticleMapper">
+
+    <resultMap id="ArticleDTOMap" type="com.cc.qylgjavaservice.dto.ArticleDTO">
+        <id column="id" property="id"/>
+        <result column="title" property="title"/>
+        <result column="content" property="content"/>
+        <result column="authorId" property="authorId"/>
+        <result column="authorName" property="authorName"/>
+        <result column="publishedAt" property="publishedAt"/>
+        <result column="likeCount" property="likeCount"/>
+        <result column="commentCount" property="commentCount"/>
+        <result column="category" property="category"/>
+
+        <!-- 关键 -->
+        <result column="images"
+                property="images"
+                typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
+    </resultMap>
+
+    <select id="selectArticlePage" resultMap="ArticleDTOMap">
+
+        SELECT
+            a.id,
+            a.title,
+            a.content,
+            a.images,
+            a.author_id AS authorId,
+            u.nick_name AS authorName,
+            a.published_at AS publishedAt
+        FROM articles a
+                 LEFT JOIN users u ON a.author_id = u.id
+        WHERE a.status = 1
+        ORDER BY a.published_at DESC
+
+    </select>
+
+    <select id="selectHotArticle" resultMap="ArticleDTOMap">
+        SELECT
+            a.id,
+            a.title,
+            a.content,
+            a.images,
+            a.author_id AS authorId,
+            u.nick_name AS authorName,
+            a.published_at AS publishedAt,
+            COUNT(DISTINCT al.id) AS likeCount,
+            COUNT(DISTINCT ac.id) AS commentCount
+        FROM articles a
+                 LEFT JOIN article_likes al ON a.id = al.article_id
+                 LEFT JOIN article_comments ac ON a.id = ac.article_id
+                 LEFT JOIN users u ON a.author_id = u.id
+        WHERE a.status = 1
+          AND a.published_at >= (EXTRACT(EPOCH FROM NOW()) * 1000)::BIGINT - 2592000000
+        GROUP BY a.id, u.nick_name, a.title, a.content, a.images, a.author_id, a.published_at
+        ORDER BY likeCount DESC
+        LIMIT 20
+    </select>
+
+    <select id="selectDiscoverList" resultMap="ArticleDTOMap">
+        SELECT
+            a.id,
+            a.title,
+            a.content,
+            a.images,
+            a.author_id AS authorId,
+            u.nick_name AS authorName,
+            a.published_at AS publishedAt,
+            a.category_id AS category,
+            COUNT(DISTINCT al.id) AS likeCount,
+            COUNT(DISTINCT ac.id) AS commentCount
+        FROM articles a
+                 LEFT JOIN article_likes al ON a.id = al.article_id
+                 LEFT JOIN article_comments ac ON a.id = ac.article_id
+                 LEFT JOIN users u ON a.author_id = u.id
+        WHERE a.status = 1
+          AND a.category_id=#{type}
+        GROUP BY a.id, u.nick_name, a.title, a.content, a.images, a.author_id, a.published_at
+        ORDER BY likeCount DESC
+    </select>
+
+</mapper>
