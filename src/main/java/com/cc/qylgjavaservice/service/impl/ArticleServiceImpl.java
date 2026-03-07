@@ -1,5 +1,6 @@
 package com.cc.qylgjavaservice.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.cc.qylgjavaservice.dto.CommentsDTO;
@@ -7,16 +8,18 @@ import com.cc.qylgjavaservice.dto.ArticleDTO;
 import com.cc.qylgjavaservice.dto.ArticleDetailDTO;
 import com.cc.qylgjavaservice.dto.Result;
 import com.cc.qylgjavaservice.entity.ArticleComments;
+import com.cc.qylgjavaservice.entity.ArticleLike;
 import com.cc.qylgjavaservice.entity.Articles;
+import com.cc.qylgjavaservice.mapper.ArticleLikeMapper;
 import com.cc.qylgjavaservice.mapper.ArticleMapper;
 import com.cc.qylgjavaservice.service.ArticleService;
+import com.cc.qylgjavaservice.utils.UserContext;
 import org.apache.ibatis.javassist.runtime.Inner;
 import org.redisson.api.RBucket;
 import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import javax.xml.stream.events.Comment;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -32,6 +35,9 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper,Articles> impl
 
     @Autowired
     private RedissonClient redissonClient;
+
+    @Autowired
+    private ArticleLikeMapper articleLikeMapper;
 
     @Override
     public Result<Page<ArticleDTO>> getArticles(int current, int pageSize) {
@@ -88,10 +94,22 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper,Articles> impl
             return Result.success(bucket.get());
         }
 
+        //查文章信息
         ArticleDTO articleDTO=articleMapper.selectArticleDetail(id);
 
+        //查评论信息
         List<CommentsDTO> commentsDTO=articleMapper.selectArticleComments(id);
 
+        //查找点赞信息
+        QueryWrapper<ArticleLike> wrapper = new QueryWrapper<>();
+        wrapper.eq("article_id", articleDTO.getId())
+                .eq("user_id", UserContext.getCurrentUserId());
+
+        ArticleLike like = articleLikeMapper.selectOne(wrapper);
+        boolean isLiked= like != null;
+        articleDTO.setLiked(isLiked);
+
+        //格式化评论
         if (commentsDTO!=null && !commentsDTO.isEmpty()){
             commentsDTO=buildCommentsTree(commentsDTO);
         }
