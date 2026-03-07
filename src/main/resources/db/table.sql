@@ -48,7 +48,7 @@ CREATE TABLE article_comments (
                                   id BIGSERIAL PRIMARY KEY,
                                   article_id BIGINT NOT NULL,
                                   user_id BIGINT NOT NULL,
-                                  parent_id BIGINT NOT NULL DEFAULT 0,
+                                  parent_id BIGINT,
                                   root_id BIGINT NOT NULL DEFAULT 0,
                                   reply_to_user_id BIGINT,
                                   content TEXT NOT NULL,

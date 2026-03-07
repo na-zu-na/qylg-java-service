@@ -11,12 +11,28 @@
         <result column="publishedAt" property="publishedAt"/>
         <result column="likeCount" property="likeCount"/>
         <result column="commentCount" property="commentCount"/>
-        <result column="category" property="category"/>
+        <result column="category" property="category"/><result column="avatarUrl" property="avatarUrl"/>
+
 
         <!-- 关键 -->
         <result column="images"
                 property="images"
                 typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
+    </resultMap>
+
+    <resultMap id="CommentsDTOMap" type="com.cc.qylgjavaservice.dto.CommentsDTO">
+        <id column="id" property="id"/>
+        <result column="userId" property="userId"/>
+        <result column="content" property="content"/>
+        <result column="nickName" property="nickName"/>
+        <result column="replyToUserName" property="replyToUserName"/>
+        <result column="createdAt" property="createdAt"/>
+        <result column="parentId" property="parentId"/>
+        <result column="replyToUserId" property="replyToUserId"/>
+
+        <!-- 关键 -->
+        <result column="avatarUrl"
+                property="avatarUrl"/>
     </resultMap>
 
     <select id="selectArticlePage" resultMap="ArticleDTOMap">
@@ -78,6 +94,46 @@
           AND a.category_id=#{type}
         GROUP BY a.id, u.nick_name, a.title, a.content, a.images, a.author_id, a.published_at
         ORDER BY likeCount DESC
+    </select>
+
+    <select id="selectArticleDetail" resultMap="ArticleDTOMap">
+        SELECT
+            a.id,
+            a.title,
+            a.content,
+            a.images,
+            u.avatar_url AS avatarUrl,
+            a.author_id AS authorId,
+            u.nick_name AS authorName,
+            a.published_at AS publishedAt,
+            a.category_id AS category,
+            COUNT(DISTINCT al.id) AS likeCount,
+            COUNT(DISTINCT ac.id) AS commentCount
+        FROM articles a
+                 LEFT JOIN article_likes al ON a.id = al.article_id
+                 LEFT JOIN article_comments ac ON a.id = ac.article_id
+                 LEFT JOIN users u ON a.author_id = u.id
+        WHERE a.status = 1
+          AND a.id=#{id}
+        GROUP BY a.id, u.nick_name, a.title, a.content, a.images, a.author_id, a.published_at,u.avatar_url
+    </select>
+
+    <select id="selectArticleComments" resultMap="CommentsDTOMap">
+        SELECT
+            ac.id,
+            ac.user_id AS userId,
+            u.nick_name AS nickName,
+            u.avatar_url AS avatarUrl,
+            ac.content AS content,
+            ac.parent_id AS parentId,
+            ac.reply_to_user_id AS replyToUserID,
+            ru.nick_name AS replyToUserName,
+            ac.created_at AS createdAt
+        FROM article_comments ac
+                 LEFT JOIN users u ON ac.user_id = u.id
+                 LEFT JOIN users ru ON ac.reply_to_user_id=ru.id
+        WHERE ac.article_id = #{id}
+        order by ac.created_at desc
     </select>
 
 </mapper>

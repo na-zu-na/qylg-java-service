@@ -15,6 +15,8 @@ public class ArticleDTO {
 
     private Long authorId;
 
+    private String avatarUrl;
+
     private List<String> images;
 
     private String authorName; // 联查得到
