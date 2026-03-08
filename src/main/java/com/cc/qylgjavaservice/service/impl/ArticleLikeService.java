@@ -1,6 +1,6 @@
 package com.cc.qylgjavaservice.service.impl;
 
-import com.cc.qylgjavaservice.dto.ArticleLikeDTO;
+import com.cc.qylgjavaservice.dto.articleDTO.ArticleLikeDTO;
 import com.cc.qylgjavaservice.dto.Result;
 
 public interface ArticleLikeService {

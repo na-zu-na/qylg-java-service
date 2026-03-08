@@ -1,6 +1,6 @@
 package com.cc.qylgjavaservice.controller;
 
-import com.cc.qylgjavaservice.dto.FileDTO;
+import com.cc.qylgjavaservice.dto.articleDTO.FileDTO;
 import com.cc.qylgjavaservice.dto.Result;
 import com.cc.qylgjavaservice.service.UploadService;
 import jakarta.annotation.Resource;

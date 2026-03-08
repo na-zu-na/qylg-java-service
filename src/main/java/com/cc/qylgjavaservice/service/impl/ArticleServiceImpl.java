@@ -1,24 +1,24 @@
 package com.cc.qylgjavaservice.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.cc.qylgjavaservice.dto.CommentsDTO;
-import com.cc.qylgjavaservice.dto.ArticleDTO;
-import com.cc.qylgjavaservice.dto.ArticleDetailDTO;
+import com.cc.qylgjavaservice.dto.articleDTO.CommentsDTO;
+import com.cc.qylgjavaservice.dto.articleDTO.ArticleDTO;
+import com.cc.qylgjavaservice.dto.articleDTO.ArticleDetailDTO;
 import com.cc.qylgjavaservice.dto.Result;
-import com.cc.qylgjavaservice.entity.ArticleComments;
 import com.cc.qylgjavaservice.entity.ArticleLike;
 import com.cc.qylgjavaservice.entity.Articles;
 import com.cc.qylgjavaservice.mapper.ArticleLikeMapper;
 import com.cc.qylgjavaservice.mapper.ArticleMapper;
 import com.cc.qylgjavaservice.service.ArticleService;
 import com.cc.qylgjavaservice.utils.UserContext;
-import org.apache.ibatis.javassist.runtime.Inner;
 import org.redisson.api.RBucket;
 import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -127,6 +127,32 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper,Articles> impl
         }
 
         return Result.success(articleDetailDTO);
+    }
+
+    @Override
+    public Result<List<ArticleDTO>> getMyArticle(String sortKey, String timeOrder) {
+        Long id=UserContext.getCurrentUserId();
+
+        List<ArticleDTO> articleDTOList=articleMapper.selectMyArticle(id,sortKey,timeOrder);
+
+        if (!articleDTOList.isEmpty()){
+            return Result.success(articleDTOList);
+        }
+        else {
+            return Result.fail(404,"无数据");
+        }
+    }
+
+    @Override
+    @Transactional
+    public Result<Boolean> delMyArticle(Long id) {
+        int i = articleMapper.deleteById(id);
+        if (i!=0){
+            return Result.success(true);
+        }
+        else {
+            return Result.fail(404,"删除失败");
+        }
     }
 
 

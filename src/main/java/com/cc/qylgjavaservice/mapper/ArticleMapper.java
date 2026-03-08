@@ -2,8 +2,8 @@ package com.cc.qylgjavaservice.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.cc.qylgjavaservice.dto.CommentsDTO;
-import com.cc.qylgjavaservice.dto.ArticleDTO;
+import com.cc.qylgjavaservice.dto.articleDTO.CommentsDTO;
+import com.cc.qylgjavaservice.dto.articleDTO.ArticleDTO;
 import com.cc.qylgjavaservice.entity.Articles;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -21,4 +21,6 @@ public interface ArticleMapper extends BaseMapper<Articles> {
     ArticleDTO selectArticleDetail(@Param("id") int id);
 
     List<CommentsDTO> selectArticleComments(@Param("id") int id);
+
+    List<ArticleDTO> selectMyArticle(@Param("id") Long id,@Param("sortKey") String sortKey, @Param("timeOrder") String timeOrder);
 }

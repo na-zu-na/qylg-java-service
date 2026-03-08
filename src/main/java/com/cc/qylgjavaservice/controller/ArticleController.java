@@ -2,12 +2,15 @@ package com.cc.qylgjavaservice.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.cc.qylgjavaservice.dto.*;
+import com.cc.qylgjavaservice.dto.articleDTO.ArticleDTO;
+import com.cc.qylgjavaservice.dto.articleDTO.ArticleDetailDTO;
+import com.cc.qylgjavaservice.dto.articleDTO.ArticleLikeDTO;
+import com.cc.qylgjavaservice.dto.articleDTO.LikeActionDTO;
 import com.cc.qylgjavaservice.service.ArticleService;
 import com.cc.qylgjavaservice.service.impl.ArticleLikeService;
 import jakarta.annotation.Resource;
 import org.springframework.web.bind.annotation.*;
 
-import javax.xml.stream.events.Comment;
 import java.util.List;
 
 
@@ -47,5 +50,16 @@ public class ArticleController {
             @RequestBody LikeActionDTO likeActionDTO) {
 
         return articleLikeService.toggleLike(id, likeActionDTO.getUserId(), likeActionDTO.getAction());
+    }
+
+    @GetMapping("/api/my/articles")
+    public Result<List<ArticleDTO>> getMyArticle(@RequestParam("sortKey") String sortKey,
+                                                 @RequestParam(value = "timeOrder",defaultValue = "desc") String timeOrder){
+        return articleService.getMyArticle(sortKey,timeOrder);
+    }
+
+    @DeleteMapping("/api/my/del")
+    public Result<Boolean> delMyArticle(@RequestParam("id") Long id){
+        return articleService.delMyArticle(id);
     }
 }

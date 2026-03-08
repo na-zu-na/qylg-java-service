@@ -1,7 +1,7 @@
 package com.cc.qylgjavaservice.service.impl;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.cc.qylgjavaservice.dto.FileDTO;
+import com.cc.qylgjavaservice.dto.articleDTO.FileDTO;
 import com.cc.qylgjavaservice.dto.Result;
 import com.cc.qylgjavaservice.mapper.UpLoadMapper;
 import com.cc.qylgjavaservice.service.UploadService;

@@ -1,4 +1,4 @@
-package com.cc.qylgjavaservice.dto;
+package com.cc.qylgjavaservice.dto.userDTO;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;

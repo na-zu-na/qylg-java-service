@@ -2,7 +2,7 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.cc.qylgjavaservice.mapper.ArticleMapper">
 
-    <resultMap id="ArticleDTOMap" type="com.cc.qylgjavaservice.dto.ArticleDTO">
+    <resultMap id="ArticleDTOMap" type="com.cc.qylgjavaservice.dto.articleDTO.ArticleDTO">
         <id column="id" property="id"/>
         <result column="title" property="title"/>
         <result column="content" property="content"/>
@@ -11,8 +11,8 @@
         <result column="publishedAt" property="publishedAt"/>
         <result column="likeCount" property="likeCount"/>
         <result column="commentCount" property="commentCount"/>
-        <result column="category" property="category"/><result column="avatarUrl" property="avatarUrl"/>
-
+        <result column="category" property="category"/>
+        <result column="avatarUrl" property="avatarUrl"/>
 
         <!-- 关键 -->
         <result column="images"
@@ -20,7 +20,7 @@
                 typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
     </resultMap>
 
-    <resultMap id="CommentsDTOMap" type="com.cc.qylgjavaservice.dto.CommentsDTO">
+    <resultMap id="CommentsDTOMap" type="com.cc.qylgjavaservice.dto.articleDTO.CommentsDTO">
         <id column="id" property="id"/>
         <result column="userId" property="userId"/>
         <result column="content" property="content"/>
@@ -134,6 +134,45 @@
                  LEFT JOIN users ru ON ac.reply_to_user_id=ru.id
         WHERE ac.article_id = #{id}
         order by ac.created_at desc
+    </select>
+
+    <select id="selectMyArticle" resultMap="ArticleDTOMap">
+        SELECT
+            a.id,
+            a.title,
+            a.content,
+            a.images,
+            u.avatar_url AS avatarUrl,
+            u.nick_name AS authorName,
+            a.published_at AS publishedAt,
+            COUNT(DISTINCT al.id) AS likeCount,
+            COUNT(DISTINCT ac.id) AS commentCount
+        FROM articles a
+                 LEFT JOIN article_likes al ON a.id = al.article_id
+                 LEFT JOIN article_comments ac ON a.id = ac.article_id
+                 LEFT JOIN users u ON a.author_id = u.id
+        WHERE a.status = 1
+            AND a.author_id=#{id}
+        GROUP BY a.id, u.nick_name, a.title, a.content, a.images, a.author_id, a.published_at, u.avatar_url
+
+        <choose>
+            <when test="sortKey=='like'">
+                ORDER BY likeCount DESC
+            </when>
+            <when test="sortKey=='comments'">
+                ORDER BY commentCount DESC
+            </when>
+            <when test="sortKey=='time' and timeOrder=='asc'">
+                ORDER BY published_at
+            </when>
+            <when test="sortKey=='time' and timeOrder=='desc'">
+                ORDER BY published_at DESC
+            </when>
+            <otherwise>
+                ORDER BY a.published_at DESC
+            </otherwise>
+        </choose>
+
     </select>
 
 </mapper>

@@ -2,10 +2,9 @@ package com.cc.qylgjavaservice.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
-import com.cc.qylgjavaservice.dto.ArticleLikeDTO;
+import com.cc.qylgjavaservice.dto.articleDTO.ArticleLikeDTO;
 import com.cc.qylgjavaservice.dto.Result;
 import com.cc.qylgjavaservice.entity.ArticleLike;
-import com.cc.qylgjavaservice.entity.Articles;
 import com.cc.qylgjavaservice.mapper.ArticleLikeMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;

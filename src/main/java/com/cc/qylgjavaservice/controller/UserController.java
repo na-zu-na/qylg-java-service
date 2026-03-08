@@ -1,13 +1,12 @@
 package com.cc.qylgjavaservice.controller;
 
 import com.cc.qylgjavaservice.dto.Result;
-import com.cc.qylgjavaservice.dto.UpdateUserDTO;
-import com.cc.qylgjavaservice.dto.UserDTO;
+import com.cc.qylgjavaservice.dto.userDTO.UpdateUserDTO;
+import com.cc.qylgjavaservice.dto.userDTO.UserDTO;
 import com.cc.qylgjavaservice.dto.WechatLoginRequest;
 import com.cc.qylgjavaservice.entity.Users;
 import com.cc.qylgjavaservice.service.UserService;
 import jakarta.annotation.Resource;
-import org.apache.catalina.User;
 import org.springframework.web.bind.annotation.*;
 
 

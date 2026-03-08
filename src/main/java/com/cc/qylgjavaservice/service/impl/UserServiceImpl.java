@@ -3,7 +3,7 @@ package com.cc.qylgjavaservice.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.cc.qylgjavaservice.dto.Result;
-import com.cc.qylgjavaservice.dto.UserDTO;
+import com.cc.qylgjavaservice.dto.userDTO.UserDTO;
 import com.cc.qylgjavaservice.dto.WechatLoginRequest;
 import com.cc.qylgjavaservice.dto.WechatSessionDTO;
 import com.cc.qylgjavaservice.entity.Users;

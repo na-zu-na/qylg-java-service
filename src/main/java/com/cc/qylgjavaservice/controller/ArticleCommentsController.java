@@ -1,6 +1,5 @@
 package com.cc.qylgjavaservice.controller;
 
-import com.cc.qylgjavaservice.dto.ArticleDetailDTO;
 import com.cc.qylgjavaservice.dto.Result;
 import com.cc.qylgjavaservice.entity.ArticleComments;
 import com.cc.qylgjavaservice.service.ArticleCommentsService;

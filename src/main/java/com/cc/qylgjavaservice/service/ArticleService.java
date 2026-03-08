@@ -1,12 +1,10 @@
 package com.cc.qylgjavaservice.service;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.cc.qylgjavaservice.dto.ArticleDTO;
-import com.cc.qylgjavaservice.dto.ArticleDetailDTO;
+import com.cc.qylgjavaservice.dto.articleDTO.ArticleDTO;
+import com.cc.qylgjavaservice.dto.articleDTO.ArticleDetailDTO;
 import com.cc.qylgjavaservice.dto.Result;
-import com.cc.qylgjavaservice.entity.ArticleComments;
 
-import javax.xml.stream.events.Comment;
 import java.util.List;
 
 public interface ArticleService {
@@ -17,4 +15,8 @@ public interface ArticleService {
     Result<List<ArticleDTO>> getDiscoverList(int type);
 
     Result<ArticleDetailDTO> getArticleDetail(int id);
+
+    Result<List<ArticleDTO>> getMyArticle(String sortKey, String timeOrder);
+
+    Result<Boolean> delMyArticle(Long id);
 }
