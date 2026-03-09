@@ -1,5 +1,6 @@
 package com.cc.qylgjavaservice.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -145,8 +146,20 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper,Articles> impl
     @Override
     @Transactional
     public Result<Boolean> delMyArticle(Long id) {
+        Integer categoryId = this.getById(id).getCategoryId();
         int i = articleMapper.deleteById(id);
+
         if (i!=0){
+            //删除缓存
+            RBucket<ArticleDTO> bucketHot=redissonClient.getBucket(HOT_ARTICLE_KEY);
+            RBucket<ArticleDTO> bucketDiscover=redissonClient.getBucket(DISCOVER_LIST_KEY_PREFIX+categoryId);
+            if (bucketHot.isExists()){
+                bucketHot.delete();
+            }
+            if (bucketDiscover.isExists()){
+                bucketDiscover.delete();
+            }
+
             return Result.success(true);
         }
         else {
@@ -159,8 +172,18 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper,Articles> impl
     public Result<Long> postArticle(Articles articles) {
         boolean b = this.saveOrUpdate(articles);
         Long id = articles.getId();
+        Integer categoryId = articles.getCategoryId();
 
         if (b){
+            //删除缓存
+            RBucket<ArticleDTO> bucketHot=redissonClient.getBucket(HOT_ARTICLE_KEY);
+            RBucket<ArticleDTO> bucketDiscover=redissonClient.getBucket(DISCOVER_LIST_KEY_PREFIX+categoryId);
+            if (bucketHot.isExists()){
+                bucketHot.delete();
+            }
+            if (bucketDiscover.isExists()){
+                bucketDiscover.delete();
+            }
             return Result.success(id);
         }
         else {
