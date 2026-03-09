@@ -6,6 +6,7 @@ import com.cc.qylgjavaservice.dto.articleDTO.ArticleDTO;
 import com.cc.qylgjavaservice.dto.articleDTO.ArticleDetailDTO;
 import com.cc.qylgjavaservice.dto.articleDTO.ArticleLikeDTO;
 import com.cc.qylgjavaservice.dto.articleDTO.LikeActionDTO;
+import com.cc.qylgjavaservice.entity.Articles;
 import com.cc.qylgjavaservice.service.ArticleService;
 import com.cc.qylgjavaservice.service.impl.ArticleLikeService;
 import jakarta.annotation.Resource;
@@ -61,5 +62,10 @@ public class ArticleController {
     @DeleteMapping("/api/my/del")
     public Result<Boolean> delMyArticle(@RequestParam("id") Long id){
         return articleService.delMyArticle(id);
+    }
+
+    @PostMapping("/api/article/post")
+    public Result<Long> postArticle(@RequestBody Articles articles){
+        return articleService.postArticle(articles);
     }
 }

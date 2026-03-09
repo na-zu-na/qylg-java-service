@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.cc.qylgjavaservice.dto.articleDTO.ArticleDTO;
 import com.cc.qylgjavaservice.dto.articleDTO.ArticleDetailDTO;
 import com.cc.qylgjavaservice.dto.Result;
+import com.cc.qylgjavaservice.entity.Articles;
 
 import java.util.List;
 
@@ -19,4 +20,6 @@ public interface ArticleService {
     Result<List<ArticleDTO>> getMyArticle(String sortKey, String timeOrder);
 
     Result<Boolean> delMyArticle(Long id);
+
+    Result<Long> postArticle(Articles articles);
 }

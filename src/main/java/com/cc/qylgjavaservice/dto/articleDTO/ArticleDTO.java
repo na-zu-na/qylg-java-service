@@ -29,6 +29,6 @@ public class ArticleDTO {
 
     public boolean isLiked;
 
-    public int category;
+    public int categoryId;
 
 }

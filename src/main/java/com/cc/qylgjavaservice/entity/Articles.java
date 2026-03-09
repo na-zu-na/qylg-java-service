@@ -1,10 +1,11 @@
 package com.cc.qylgjavaservice.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
-import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
 import com.cc.qylgjavaservice.enums.ArticleStatus;
+import com.cc.qylgjavaservice.utils.JsonbTypeHandler;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Data;
+import org.apache.ibatis.type.JdbcType;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -27,7 +28,9 @@ public class Articles {
     @TableField("content")
     private String content;
 
-    @TableField(value = "images",typeHandler = JacksonTypeHandler.class)
+    @TableField(value = "images",
+            typeHandler = JsonbTypeHandler.class,
+            jdbcType = JdbcType.OTHER)
     private List<String> images;
 
     @TableField("status")

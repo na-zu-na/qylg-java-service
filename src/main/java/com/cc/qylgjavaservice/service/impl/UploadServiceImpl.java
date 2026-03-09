@@ -36,7 +36,7 @@ public class UploadServiceImpl extends ServiceImpl<UpLoadMapper, FileDTO> implem
             String ext = file.getOriginalFilename()
                     .substring(file.getOriginalFilename().lastIndexOf("."));
 
-            String fileName = "avatar/" + UUID.randomUUID() + ext;
+            String fileName = type+"/" + UUID.randomUUID() + ext;
 
             InputStream inputStream = file.getInputStream();
 

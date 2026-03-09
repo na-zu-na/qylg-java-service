@@ -11,7 +11,7 @@
         <result column="publishedAt" property="publishedAt"/>
         <result column="likeCount" property="likeCount"/>
         <result column="commentCount" property="commentCount"/>
-        <result column="category" property="category"/>
+        <result column="categoryId" property="categoryId"/>
         <result column="avatarUrl" property="avatarUrl"/>
 
         <!-- 关键 -->
@@ -83,7 +83,7 @@
             a.author_id AS authorId,
             u.nick_name AS authorName,
             a.published_at AS publishedAt,
-            a.category_id AS category,
+            a.category_id AS categoryId,
             COUNT(DISTINCT al.id) AS likeCount,
             COUNT(DISTINCT ac.id) AS commentCount
         FROM articles a
@@ -106,7 +106,7 @@
             a.author_id AS authorId,
             u.nick_name AS authorName,
             a.published_at AS publishedAt,
-            a.category_id AS category,
+            a.category_id AS categoryId,
             COUNT(DISTINCT al.id) AS likeCount,
             COUNT(DISTINCT ac.id) AS commentCount
         FROM articles a

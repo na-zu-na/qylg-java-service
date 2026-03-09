@@ -1,6 +1,5 @@
 package com.cc.qylgjavaservice.service.impl;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -152,6 +151,20 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper,Articles> impl
         }
         else {
             return Result.fail(404,"删除失败");
+        }
+    }
+
+    @Override
+    @Transactional
+    public Result<Long> postArticle(Articles articles) {
+        boolean b = this.saveOrUpdate(articles);
+        Long id = articles.getId();
+
+        if (b){
+            return Result.success(id);
+        }
+        else {
+            return Result.fail(500,"新增/修改文章失败");
         }
     }
 
