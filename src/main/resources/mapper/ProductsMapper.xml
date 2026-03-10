@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.cc.qylgjavaservice.mapper.ProductsMapper">
+    <resultMap id="ProductsReviewDTO" type="com.cc.qylgjavaservice.dto.productsDTO.ProductsReviewDTO">
+        <id column="id" property="id"/>
+        <result column="content" property="content"/>
+        <result column="avatarUrl" property="avatarUrl"/>
+        <result column="nickName" property="nickName"/>
+        <result column="rate" property="rate"/>
+        <result column="publishedAt" property="publishedAt"/>
+
+        <!-- 关键 -->
+        <result column="images"
+                property="images"
+                typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
+    </resultMap>
+
+    <select id="getProductsReview" resultMap="ProductsReviewDTO">
+        SELECT
+            pr.id,
+            pr.content,
+            pr.rate,
+            pr.created_at AS publishedAt,
+            pr.images,
+            u.avatar_url AS avatarUrl,
+            u.nick_name AS nickName
+        FROM product_reviews pr
+        LEFT JOIN users u on pr.user_id = u.id
+        WHERE pr.goods_id=#{id}
+        ORDER BY u.created_at DESC
+    </select>
+</mapper>

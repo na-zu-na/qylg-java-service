@@ -240,4 +240,20 @@ ALTER TABLE orders
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT;
 
 alter TABLE articles ADD
-    CONSTRAINT fk_articles_category FOREIGN KEY (category_id) REFERENCES article_categories(id) ON DELETE RESTRICT
+    CONSTRAINT fk_articles_category FOREIGN KEY (category_id) REFERENCES article_categories(id) ON DELETE RESTRICT;
+
+
+CREATE INDEX idx_articles_list ON articles (status, category_id, published_at DESC);
+CREATE INDEX idx_articles_author ON articles (author_id, status, published_at DESC);
+CREATE INDEX idx_likes_article ON article_likes (article_id);
+CREATE INDEX idx_likes_user ON article_likes (user_id);
+CREATE INDEX idx_reviews_user ON product_reviews (user_id);
+
+CREATE INDEX idx_products_default ON products (status, id DESC);
+CREATE INDEX idx_products_price_asc ON products (status, price ASC, id DESC);
+CREATE INDEX idx_products_price_desc ON products (status, price DESC, id DESC);
+CREATE INDEX idx_products_type_status ON products (type, status);
+
+CREATE INDEX idx_orders_user_list ON orders (user_id, created_at DESC);
+CREATE INDEX idx_order_items_goods ON order_items (goods_id);
+CREATE INDEX idx_custom_orders_user ON custom_orders (user_id, created_at DESC);

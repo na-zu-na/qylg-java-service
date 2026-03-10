@@ -62,6 +62,8 @@ public class Products {
     @TableField("total_sales")
     private Integer totalSales;
 
+    private Integer stock;
+
     /**
      * 状态: 0-下架，1-上架
      */
