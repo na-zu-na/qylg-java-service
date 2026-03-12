@@ -255,5 +255,10 @@ CREATE INDEX idx_products_price_desc ON products (status, price DESC, id DESC);
 CREATE INDEX idx_products_type_status ON products (type, status);
 
 CREATE INDEX idx_orders_user_list ON orders (user_id, created_at DESC);
+CREATE INDEX idx_orders_user_status_time
+    ON orders(user_id,status,created_at);
+CREATE INDEX idx_orders_status
+    ON orders(status);
+
 CREATE INDEX idx_order_items_goods ON order_items (goods_id);
 CREATE INDEX idx_custom_orders_user ON custom_orders (user_id, created_at DESC);

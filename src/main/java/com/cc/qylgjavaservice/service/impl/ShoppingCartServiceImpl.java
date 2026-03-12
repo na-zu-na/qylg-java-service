@@ -76,6 +76,7 @@ public class ShoppingCartServiceImpl extends ServiceImpl<ShoppingCartMapper, Sho
                     this.save(newItem);
 
                 } else {
+                    //单纯新增
                     if (inputCount==2147483647){
                         existItem.setCount(existItem.getCount()+1);
                     }

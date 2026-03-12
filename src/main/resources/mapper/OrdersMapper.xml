@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.cc.qylgjavaservice.mapper.OrdersMapper">
+
+    <!-- 1. 定义 resultMap -->
+    <resultMap id="OrderListResultMap" type="com.cc.qylgjavaservice.dto.OrderDTO.OrderListDTO">
+        <!-- 普通字段自动映射 (如果列名和属性名一致，可以省略，但写上更明确) -->
+        <id property="orderNo" column="orderNo"/>
+        <result property="status" column="status"/>
+        <result property="createTime" column="createTime"/>
+        <result property="totalPrice" column="totalPrice"/>
+        <result property="totalCount" column="totalCount"/>
+
+        <result property="goods" column="goods"
+                javaType="java.util.List"
+                typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
+    </resultMap>
+
+    <!-- 2. 修改 select 标签 -->
+    <!-- 将 resultType 替换为 resultMap，指向上面定义的 ID -->
+    <select id="selectOrderList" resultMap="OrderListResultMap">
+        SELECT
+        o.order_no        AS "orderNo",
+        o.status          AS "status",
+        o.created_at      AS "createTime",
+
+        SUM(i.price * i.count) AS "totalPrice",
+        SUM(i.count)           AS "totalCount",
+
+        -- PostgreSQL 聚合函数，生成 JSONB/JSON 数组
+        json_agg(
+        json_build_object(
+        'id', i.id,
+        'goodsId', p.id,
+        'title', p.title,
+        'cover', p.cover,
+        'count', i.count,
+        'price', i.price
+        )
+        ) AS goods
+
+        FROM orders o
+        LEFT JOIN order_items i ON o.id = i.order_id
+        LEFT JOIN products p ON i.goods_id = p.id
+
+        WHERE o.user_id = #{userId}
+
+        <if test="status != null">
+            AND o.status = #{status}
+        </if>
+
+        <if test="keyword != null and keyword != ''">
+            AND (
+            o.order_no ILIKE CONCAT('%',#{keyword},'%')
+            OR p.title ILIKE CONCAT('%',#{keyword},'%')
+            )
+        </if>
+
+        <!-- 注意：所有非聚合的 SELECT 字段都必须出现在 GROUP BY 中 -->
+        GROUP BY o.id, o.order_no, o.status, o.created_at
+
+        ORDER BY o.created_at DESC
+    </select>
+</mapper>
