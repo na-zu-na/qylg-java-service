@@ -132,7 +132,7 @@ public class ProductsServiceImpl extends ServiceImpl<ProductsMapper,Products> im
     }
 
     @Override
-    public Result<List<Products>> getgetMassGoodsList(MassProductsQueryDTO dto) {
+    public Result<List<Products>> getMassGoodsList(MassProductsQueryDTO dto) {
         LambdaQueryWrapper<Products> wrapper = new LambdaQueryWrapper<>();
 
         // 只查上架商品 (status = 1)

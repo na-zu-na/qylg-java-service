@@ -38,7 +38,7 @@ public class ProductsController {
 
     @GetMapping("/products/mass-list")
     public Result<List<Products>> getMassGoodsList(MassProductsQueryDTO dto) {
-        return productsService.getgetMassGoodsList(dto);
+        return productsService.getMassGoodsList(dto);
     }
 
     @GetMapping("/products/detail")

@@ -138,7 +138,14 @@ public class OrdersServiceImpl extends ServiceImpl<OrdersMapper, Orders> impleme
 
     @Override
     public Result<Long> receiveOrder(Long id) {
-        boolean update = this.lambdaUpdate().eq(Orders::getId, id).set(Orders::getStatus, 2).update();
+        Long userId = UserContext.getCurrentUserId();
+
+        boolean update = this.lambdaUpdate()
+                .eq(Orders::getId, id)
+                .eq(Orders::getUserId, userId) // 防止越权
+                .eq(Orders::getStatus, 1)      // 确保只有“待收货”状态才能转为“已完成”
+                .set(Orders::getStatus, 2)
+                .update();
         if(update){
             return Result.success(id);
         }

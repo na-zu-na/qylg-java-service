@@ -16,7 +16,7 @@ public interface ProductsService {
 
     Result<List<Products>> searchProducts(String keyword, String type);
 
-    Result<List<Products>> getgetMassGoodsList(MassProductsQueryDTO dto);
+    Result<List<Products>> getMassGoodsList(MassProductsQueryDTO dto);
 
     Result<Products> getProductsDetail(Long id);
 

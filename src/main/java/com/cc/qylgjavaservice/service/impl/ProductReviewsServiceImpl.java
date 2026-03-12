@@ -22,6 +22,8 @@ public class ProductReviewsServiceImpl extends ServiceImpl<ProductReviewsMapper,
         Long orderId = productReviews.getOrderId();
         Orders orders = ordersMapper.selectById(orderId);
         if (orders!=null){
+            if (!orders.getUserId().equals(currentUserId))
+                return Result.fail("无权评价此订单");
             productReviews.setUserId(currentUserId);
             boolean save = this.save(productReviews);
             if (save){
