@@ -108,7 +108,7 @@ CREATE TABLE product_reviews (
                                  content TEXT NOT NULL,
                                  rate SMALLINT NOT NULL, -- 评分 1-5
                                  images JSONB,
-                                 created_at TIMESTAMP NOT NULL,
+                                 created_at BIGINT NOT NULL,
 
                                  CONSTRAINT fk_reviews_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
                                  CONSTRAINT fk_reviews_product FOREIGN KEY (goods_id) REFERENCES products(id) ON DELETE CASCADE,

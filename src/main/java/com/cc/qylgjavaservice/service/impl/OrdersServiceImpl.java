@@ -2,6 +2,7 @@ package com.cc.qylgjavaservice.service.impl;
 
 import cn.hutool.json.JSONUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.conditions.update.LambdaUpdateChainWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.cc.qylgjavaservice.dto.OrderDTO.OrderCreateDTO;
@@ -21,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -132,6 +134,30 @@ public class OrdersServiceImpl extends ServiceImpl<OrdersMapper, Orders> impleme
                 );
 
         return Result.success(result);
+    }
+
+    @Override
+    public Result<Long> receiveOrder(Long id) {
+        boolean update = this.lambdaUpdate().eq(Orders::getId, id).set(Orders::getStatus, 2).update();
+        if(update){
+            return Result.success(id);
+        }
+        return Result.fail(500,"更新错误");
+    }
+
+    @Override
+    public Result<OrderListDTO> orderDetail(Long id) {
+        OrderListDTO orderListDTO=ordersMapper.selectOrderDetail(id);
+        if (orderListDTO!=null){
+            LocalDateTime createTime = orderListDTO.getCreateTime();
+            long epochMilli = createTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+            orderListDTO.setFormattedCreateTime(epochMilli);
+
+            return Result.success(orderListDTO);
+        }
+        else {
+            return Result.fail(404,"没找到");
+        }
     }
 
     /**

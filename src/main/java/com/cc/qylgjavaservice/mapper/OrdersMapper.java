@@ -15,4 +15,6 @@ public interface OrdersMapper extends BaseMapper<Orders> {
             @Param("status") Integer status,
             @Param("keyword") String keyword
     );
+
+    OrderListDTO selectOrderDetail(Long id);
 }

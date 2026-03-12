@@ -61,6 +61,7 @@
             a.author_id AS authorId,
             u.nick_name AS authorName,
             a.published_at AS publishedAt,
+            u.avatar_url AS avatarUrl,
             COUNT(DISTINCT al.id) AS likeCount,
             COUNT(DISTINCT ac.id) AS commentCount
         FROM articles a
@@ -69,7 +70,7 @@
                  LEFT JOIN users u ON a.author_id = u.id
         WHERE a.status = 1
           AND a.published_at >= (EXTRACT(EPOCH FROM NOW()) * 1000)::BIGINT - 2592000000
-        GROUP BY a.id, u.nick_name, a.title, a.content, a.images, a.author_id, a.published_at
+        GROUP BY a.id, u.nick_name, a.title, a.content, a.images, a.author_id, a.published_at,u.avatar_url
         ORDER BY likeCount DESC
         LIMIT 20
     </select>
@@ -84,6 +85,7 @@
             u.nick_name AS authorName,
             a.published_at AS publishedAt,
             a.category_id AS categoryId,
+            u.avatar_url AS avatarUrl,
             COUNT(DISTINCT al.id) AS likeCount,
             COUNT(DISTINCT ac.id) AS commentCount
         FROM articles a
@@ -92,8 +94,8 @@
                  LEFT JOIN users u ON a.author_id = u.id
         WHERE a.status = 1
           AND a.category_id=#{type}
-        GROUP BY a.id, u.nick_name, a.title, a.content, a.images, a.author_id, a.published_at
-        ORDER BY likeCount DESC
+        GROUP BY a.id, u.nick_name, a.title, a.content, a.images, a.author_id, a.published_at,a.created_at,u.avatar_url
+        ORDER BY a.created_at DESC
     </select>
 
     <select id="selectArticleDetail" resultMap="ArticleDTOMap">

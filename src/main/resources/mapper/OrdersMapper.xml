@@ -5,11 +5,14 @@
     <!-- 1. 定义 resultMap -->
     <resultMap id="OrderListResultMap" type="com.cc.qylgjavaservice.dto.OrderDTO.OrderListDTO">
         <!-- 普通字段自动映射 (如果列名和属性名一致，可以省略，但写上更明确) -->
-        <id property="orderNo" column="orderNo"/>
+        <result property="orderNo" column="orderNo"/>
         <result property="status" column="status"/>
         <result property="createTime" column="createTime"/>
         <result property="totalPrice" column="totalPrice"/>
         <result property="totalCount" column="totalCount"/>
+        <result property="name" column="name"/>
+        <result property="phone" column="phone"/>
+        <result property="location" column="location"/>
 
         <result property="goods" column="goods"
                 javaType="java.util.List"
@@ -20,6 +23,7 @@
     <!-- 将 resultType 替换为 resultMap，指向上面定义的 ID -->
     <select id="selectOrderList" resultMap="OrderListResultMap">
         SELECT
+        o.id,
         o.order_no        AS "orderNo",
         o.status          AS "status",
         o.created_at      AS "createTime",
@@ -60,5 +64,34 @@
         GROUP BY o.id, o.order_no, o.status, o.created_at
 
         ORDER BY o.created_at DESC
+    </select>
+
+    <select id="selectOrderDetail" resultMap="OrderListResultMap">
+        select
+            o.id,
+            o.order_no as orderNo,
+            o.status,
+            o.created_at as createTime,
+            o.total_price as totalPrice,
+            o.total_count as totalCount,
+            o.receiver_name as name,
+            o.receiver_phone as phone,
+            o.receiver_address as location,
+            json_agg(
+            json_build_object(
+                'id',i.id,
+                'price',p.price,
+                'goodsId',i.goods_id,
+                'title',p.title,
+                'cover',p.cover,
+                'count',i.count
+            )
+            ) as goods
+
+        from orders o
+        left join order_items i on o.id = i.order_id
+        left join products p on i.goods_id = p.id
+        where o.id=#{id}
+        group by o.id, o.order_no, o.status, o.created_at, o.total_price, o.total_price, o.receiver_name, o.receiver_phone, o.receiver_address
     </select>
 </mapper>

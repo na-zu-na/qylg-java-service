@@ -12,4 +12,8 @@ public interface OrdersService {
     Result<Long> createOrder(OrderCreateDTO dto);
 
     Result<Page<OrderListDTO>> getOrderList(OrderQueryDTO orderQueryDTO);
+
+    Result<Long> receiveOrder(Long id);
+
+    Result<OrderListDTO> orderDetail(Long id);
 }
