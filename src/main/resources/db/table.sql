@@ -88,13 +88,13 @@ CREATE TABLE products (
                           min_price NUMERIC(10, 2),
                           max_price NUMERIC(10, 2),
                           anchor VARCHAR(255),
-                          "desc" TEXT NOT NULL,
+                          description TEXT NOT NULL,
                           images JSONB,
                           purpose VARCHAR(100),
-                          style VARCHAR(100),
-                          material VARCHAR(100),
                           total_sales INTEGER NOT NULL DEFAULT 0,
                           status SMALLINT NOT NULL DEFAULT 1, -- 0-下架，1-上架
+                          size_range VARCHAR(100),
+                          make_time INTEGER,
                           created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -234,6 +234,61 @@ CREATE TABLE ai_configs (
                             CONSTRAINT uk_ai_config_name UNIQUE (name)
 );
 
+--17. 商品风格表
+CREATE TABLE styles (
+                        id BIGSERIAL PRIMARY KEY,
+                        name VARCHAR(100) NOT NULL,
+                        description TEXT,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+
+--18.商品材质表
+CREATE TABLE materials (
+                           id BIGSERIAL PRIMARY KEY,
+                           name VARCHAR(100) NOT NULL,
+                           description TEXT,
+                           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+--19.商品-风格关系表
+CREATE TABLE custom_pro_styles (
+                                     id BIGSERIAL PRIMARY KEY,
+                                     product_id BIGINT NOT NULL,
+                                     style_id BIGINT NOT NULL,
+
+                                     CONSTRAINT fk_cos_pro
+                                         FOREIGN KEY (product_id)
+                                             REFERENCES products(id)
+                                             ON DELETE CASCADE,
+
+                                     CONSTRAINT fk_cos_style
+                                         FOREIGN KEY (style_id)
+                                             REFERENCES styles(id)
+                                             ON DELETE RESTRICT,
+
+                                     CONSTRAINT uk_order_style UNIQUE(product_id, style_id)
+);
+
+--20.商品-材质关系表
+CREATE TABLE custom_pro_materials (
+                                        id BIGSERIAL PRIMARY KEY,
+                                        product_id BIGINT NOT NULL,
+                                        material_id BIGINT NOT NULL,
+
+                                        CONSTRAINT fk_com_pro
+                                            FOREIGN KEY (product_id)
+                                                REFERENCES products(id)
+                                                ON DELETE CASCADE,
+
+                                        CONSTRAINT fk_com_material
+                                            FOREIGN KEY (material_id)
+                                                REFERENCES materials(id)
+                                                ON DELETE RESTRICT,
+
+                                        CONSTRAINT uk_order_material UNIQUE(product_id, material_id)
+);
+
 
 ALTER TABLE orders
     ADD CONSTRAINT fk_orders_user
@@ -262,3 +317,9 @@ CREATE INDEX idx_orders_status
 
 CREATE INDEX idx_order_items_goods ON order_items (goods_id);
 CREATE INDEX idx_custom_orders_user ON custom_orders (user_id, created_at DESC);
+
+CREATE INDEX idx_custom_pro_styles_product
+    ON custom_pro_styles(product_id);
+
+CREATE INDEX idx_custom_pro_materials_product
+    ON custom_pro_materials(products_id);

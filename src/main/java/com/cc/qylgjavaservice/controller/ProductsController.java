@@ -2,10 +2,7 @@ package com.cc.qylgjavaservice.controller;
 
 
 import com.cc.qylgjavaservice.dto.Result;
-import com.cc.qylgjavaservice.dto.productsDTO.CartOperationDTO;
-import com.cc.qylgjavaservice.dto.productsDTO.MassProductsQueryDTO;
-import com.cc.qylgjavaservice.dto.productsDTO.ProductsDTO;
-import com.cc.qylgjavaservice.dto.productsDTO.ProductsReviewDTO;
+import com.cc.qylgjavaservice.dto.productsDTO.*;
 import com.cc.qylgjavaservice.entity.Products;
 import com.cc.qylgjavaservice.service.ProductsService;
 import com.cc.qylgjavaservice.service.ShoppingCartService;
@@ -49,5 +46,15 @@ public class ProductsController {
     @GetMapping("/products/{id}/reviews")
     public Result<List<ProductsReviewDTO>> getProductsReview(@PathVariable Long id) {
         return productsService.getProductsReview(id);
+    }
+
+    @GetMapping("/products/custom-list")
+    public Result<List<Products>> getCustomGoodsList(MassProductsQueryDTO dto) {
+        return productsService.getCustomGoodsList(dto);
+    }
+
+    @GetMapping("/products/custom/detail")
+    public Result<ProductsCustomDetailDTO> getProductCustomsDetail(@RequestParam Long id) {
+        return productsService.getProductCustomsDetail(id);
     }
 }

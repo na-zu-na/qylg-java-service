@@ -1,10 +1,7 @@
 package com.cc.qylgjavaservice.service;
 
 import com.cc.qylgjavaservice.dto.Result;
-import com.cc.qylgjavaservice.dto.productsDTO.CartOperationDTO;
-import com.cc.qylgjavaservice.dto.productsDTO.MassProductsQueryDTO;
-import com.cc.qylgjavaservice.dto.productsDTO.ProductsDTO;
-import com.cc.qylgjavaservice.dto.productsDTO.ProductsReviewDTO;
+import com.cc.qylgjavaservice.dto.productsDTO.*;
 import com.cc.qylgjavaservice.entity.Products;
 
 import java.util.List;
@@ -21,4 +18,8 @@ public interface ProductsService {
     Result<Products> getProductsDetail(Long id);
 
     Result<List<ProductsReviewDTO>> getProductsReview(Long id);
+
+    Result<List<Products>> getCustomGoodsList(MassProductsQueryDTO dto);
+
+    Result<ProductsCustomDetailDTO> getProductCustomsDetail(Long id);
 }

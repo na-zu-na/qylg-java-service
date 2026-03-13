@@ -15,6 +15,24 @@
                 typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
     </resultMap>
 
+    <resultMap id="productCustomDetailMap"
+               type="com.cc.qylgjavaservice.dto.productsDTO.ProductsCustomDetailDTO">
+
+        <id column="id" property="id"/>
+
+        <result column="title" property="title"/>
+        <result column="cover" property="cover"/>
+
+        <result column="styleList"
+                property="styleList"
+                typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
+
+        <result column="materialList"
+                property="materialList"
+                typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
+
+    </resultMap>
+
     <select id="getProductsReview" resultMap="ProductsReviewDTO">
         SELECT
             pr.id,
@@ -28,5 +46,53 @@
         LEFT JOIN users u on pr.user_id = u.id
         WHERE pr.goods_id=#{id}
         ORDER BY pr.created_at DESC
+    </select>
+
+    <select id="getProductCustomsDetail"
+            resultMap="productCustomDetailMap">
+
+        SELECT
+            p.id,
+            p.title,
+            p.cover,
+            p.min_price,
+            p.max_price,
+            p.anchor,
+            p.description,
+            p.images,
+            p.purpose,
+            p.total_sales,
+            p.stock,
+            p.status,
+            p.size_range,
+            p.make_time,
+            p.created_at,
+
+            to_json(st.styles) AS "styleList",
+            to_json(mt.materials) AS "materialList"
+
+        FROM products p
+
+                 LEFT JOIN (
+            SELECT
+                cs.product_id,
+                ARRAY_AGG(s.name) AS styles
+            FROM custom_pro_styles cs
+                     JOIN styles s ON cs.style_id = s.id
+            GROUP BY cs.product_id
+        ) st ON p.id = st.product_id
+
+                 LEFT JOIN (
+            SELECT
+                cm.products_id,
+                ARRAY_AGG(m.name) AS materials
+            FROM custom_pro_materials cm
+                     JOIN materials m ON cm.material_id = m.id
+            GROUP BY cm.products_id
+        ) mt ON p.id = mt.products_id
+
+        WHERE p.id = #{id}
+          AND p.status = 1
+
     </select>
 </mapper>
