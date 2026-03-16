@@ -1,13 +1,7 @@
 package com.cc.qylgjavaservice.dto.productsDTO;
 
-import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
-import com.baomidou.mybatisplus.annotation.TableId;
-import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
-import com.cc.qylgjavaservice.entity.Products;
-import com.cc.qylgjavaservice.utils.JsonbTypeHandler;
 import lombok.Data;
-import org.apache.ibatis.type.JdbcType;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -32,9 +26,6 @@ public class ProductsCustomDetailDTO {
     @TableField("description")
     private String description;
 
-    @TableField(value = "images",
-            typeHandler = JsonbTypeHandler.class,
-            jdbcType = JdbcType.OTHER)
     private List<String> images;
 
     private String purpose;

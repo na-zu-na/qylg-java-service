@@ -22,6 +22,7 @@
 
         <result column="title" property="title"/>
         <result column="cover" property="cover"/>
+        <result column="images" property="images" typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
 
         <result column="styleList"
                 property="styleList"

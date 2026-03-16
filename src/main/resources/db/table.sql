@@ -148,7 +148,7 @@ CREATE TABLE custom_orders (
                                id BIGSERIAL PRIMARY KEY,
                                order_no VARCHAR(64) NOT NULL,
                                user_id BIGINT NOT NULL,
-                               goods_name VARCHAR(255) NOT NULL,
+                               product_id BIGINT NOT NULL,
                                purpose VARCHAR(100) NOT NULL,
                                style VARCHAR(100) NOT NULL,
                                material VARCHAR(100) NOT NULL,
@@ -159,13 +159,13 @@ CREATE TABLE custom_orders (
                                size VARCHAR(50) NOT NULL,
                                remark TEXT,
                                images JSONB,
-                               status VARCHAR NOT NULL, -- 'making', 'shipping', 'finished'
+                               status smallint NOT NULL default 0, -- 'making', 'shipping', 'finished'
                                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
                                CONSTRAINT uk_custom_order_no UNIQUE (order_no),
-                               CONSTRAINT fk_custom_orders_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT
+                               CONSTRAINT fk_custom_orders_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT,
+                               CONSTRAINT fk_orders_products foreign key (product_id) references products(id)
 );
-
 
 -- 12. 颜色纹路标签表 (tags)
 CREATE TABLE tags (
@@ -207,22 +207,6 @@ CREATE TABLE order_items (
 );
 CREATE INDEX idx_order_items_order ON order_items (order_id);
 
--- 15. 聊天记录表 (chat_messages)
-CREATE TABLE chat_messages (
-                               id BIGSERIAL PRIMARY KEY,
-                               order_no VARCHAR(64),
-                               user_id BIGINT NOT NULL,
-                               role VARCHAR(10) NOT NULL,
-                               content TEXT NOT NULL,
-                               msg_type VARCHAR(10) NOT NULL DEFAULT 'text',
-                               created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-                               CONSTRAINT chk_chat_role CHECK (role IN ('user', 'ai')),
-                               CONSTRAINT chk_chat_msg_type CHECK (msg_type IN ('text', 'image')),
-                               CONSTRAINT fk_chat_user FOREIGN KEY (user_id) REFERENCES  users(id) ON DELETE CASCADE
-
-);
-CREATE INDEX idx_chat_messages_session ON chat_messages (order_no, created_at);
 
 -- 16. AI配置表 (ai_configs)
 CREATE TABLE ai_configs (
@@ -289,6 +273,90 @@ CREATE TABLE custom_pro_materials (
                                         CONSTRAINT uk_order_material UNIQUE(product_id, material_id)
 );
 
+--21. 会话表
+CREATE TABLE conversations (
+                               id BIGSERIAL PRIMARY KEY,
+
+                               type SMALLINT NOT NULL DEFAULT 1,
+
+                               order_no VARCHAR(64),
+
+                               last_message TEXT,
+                               last_message_time TIMESTAMP,
+
+                               created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                               updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+--22.会话成员表
+CREATE TABLE conversation_members (
+                                      id BIGSERIAL PRIMARY KEY,
+
+                                      conversation_id BIGINT NOT NULL,
+
+                                      user_id BIGINT NOT NULL,
+
+                                      role SMALLINT DEFAULT 1,
+
+                                      unread_count INT DEFAULT 0,
+
+                                      last_read_message_id BIGINT,
+
+                                      joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+                                      CONSTRAINT fk_member_conversation
+                                          FOREIGN KEY (conversation_id)
+                                              REFERENCES conversations(id)
+                                              ON DELETE CASCADE
+);
+
+--23.聊天消息表
+CREATE TABLE chat_messages (
+                               id BIGSERIAL PRIMARY KEY,
+
+                               conversation_id BIGINT NOT NULL,
+
+                               sender_id BIGINT NOT NULL,
+
+                               content TEXT NOT NULL,
+
+                               msg_type VARCHAR(20) DEFAULT 'text',
+
+                               status SMALLINT DEFAULT 1,
+
+                               extra JSONB,
+
+                               created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+                               CONSTRAINT fk_msg_conversation
+                                   FOREIGN KEY (conversation_id)
+                                       REFERENCES conversations(id)
+                                       ON DELETE CASCADE
+);
+
+--24.消息附件表
+CREATE TABLE message_attachments (
+                                     id BIGSERIAL PRIMARY KEY,
+
+                                     message_id BIGINT NOT NULL,
+
+                                     file_url TEXT NOT NULL,
+
+                                     file_size BIGINT,
+
+                                     mime_type VARCHAR(100),
+
+                                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+--消息查询
+CREATE INDEX idx_msg_conversation_time
+    ON chat_messages(conversation_id, created_at DESC);
+--用户会话查询
+CREATE INDEX idx_member_user
+    ON conversation_members(user_id);
+--消息发送人
+CREATE INDEX idx_msg_sender
+    ON chat_messages(sender_id);
 
 ALTER TABLE orders
     ADD CONSTRAINT fk_orders_user
@@ -323,3 +391,4 @@ CREATE INDEX idx_custom_pro_styles_product
 
 CREATE INDEX idx_custom_pro_materials_product
     ON custom_pro_materials(products_id);
+

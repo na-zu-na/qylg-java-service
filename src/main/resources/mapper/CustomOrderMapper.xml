@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.cc.qylgjavaservice.mapper.CustomOrderMapper">
+    <resultMap id="CustomOrderListDTO" type="com.cc.qylgjavaservice.dto.OrderDTO.CustomOrderListDTO">
+        <result column="colorOptions" property="colorOptions" typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
+        <result column="patternOptions" property="patternOptions" typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
+        <result column="images" property="images" typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
+    </resultMap>
+
+    <select id="selectCustomOrderList" resultMap="CustomOrderListDTO">
+        select
+            co.id,
+            p.id as productId,
+            p.title,
+            co.order_no,
+            co.purpose,
+            co.style,
+            co.status,
+            co.material,
+            co.min_budget,
+            co.max_budget,
+            co.size,
+            co.remark,
+            co.colors as colorOptions,
+            co.patterns as patternOptions,
+            co.images,
+            co.created_at
+        from custom_orders as co
+        left join products as p on co.product_id = p.id
+        where co.user_id=#{currentUserId}
+        <if test="status != null">
+            and co.status=#{status}
+        </if>
+        <if test="key != null">
+            and (co.purpose ilike concat('%',#{key},'%')
+                or co.style ilike concat('%',#{key},'%')
+                or co.material ilike concat('%',#{key},'%')
+                or co.order_no ilike concat('%',#{key},'%')
+                or p.title ilike concat('%',#{key},'%')
+                or co.remark ilike concat('%',#{key},'%')
+                )
+        </if>
+        order by co.created_at Desc
+    </select>
+</mapper>

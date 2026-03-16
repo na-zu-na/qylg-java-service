@@ -1,13 +1,13 @@
 package com.cc.qylgjavaservice.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.cc.qylgjavaservice.dto.OrderDTO.OrderCreateDTO;
-import com.cc.qylgjavaservice.dto.OrderDTO.OrderListDTO;
-import com.cc.qylgjavaservice.dto.OrderDTO.OrderQueryDTO;
+import com.cc.qylgjavaservice.dto.OrderDTO.*;
 import com.cc.qylgjavaservice.dto.Result;
 import com.cc.qylgjavaservice.entity.ProductReviews;
+import com.cc.qylgjavaservice.service.CustomOrderService;
 import com.cc.qylgjavaservice.service.OrdersService;
 import com.cc.qylgjavaservice.service.ProductReviewsService;
+import com.cc.qylgjavaservice.utils.UserContext;
 import jakarta.annotation.Resource;
 import org.springframework.web.bind.annotation.*;
 
@@ -18,6 +18,9 @@ import java.util.List;
 public class OrdersController {
     @Resource
     private OrdersService ordersService;
+
+    @Resource
+    private CustomOrderService customOrderService;
 
     @Resource
     private ProductReviewsService productReviewsService;
@@ -45,5 +48,22 @@ public class OrdersController {
     @PostMapping("/reviews")
     public Result<Long> addReview(@RequestBody ProductReviews productReviews){
         return productReviewsService.addReview(productReviews);
+    }
+
+    @PostMapping("/custom/create")
+    public Result<Long> createCustomOrder(@RequestBody CustomOrderCreateDTO dto) {
+        Long currentUserId = UserContext.getCurrentUserId();
+
+        return customOrderService.createCustomOrder(dto, currentUserId);
+    }
+
+    @PostMapping("/custom/list")
+    public Result<Page<CustomOrderListDTO>> customOrderList(@RequestBody CustomOrderListParamDTO dto) {
+        return customOrderService.customOrderList(dto);
+    }
+
+    @GetMapping("/custom/receive")
+    public Result<Long> receiveCustomOrder(@RequestParam Long id){
+        return customOrderService.receiveCustomOrder(id);
     }
 }

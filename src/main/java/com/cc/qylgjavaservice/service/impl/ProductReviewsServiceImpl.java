@@ -2,8 +2,10 @@ package com.cc.qylgjavaservice.service.impl;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.cc.qylgjavaservice.dto.Result;
+import com.cc.qylgjavaservice.entity.CustomOrder;
 import com.cc.qylgjavaservice.entity.Orders;
 import com.cc.qylgjavaservice.entity.ProductReviews;
+import com.cc.qylgjavaservice.mapper.CustomOrderMapper;
 import com.cc.qylgjavaservice.mapper.OrdersMapper;
 import com.cc.qylgjavaservice.mapper.ProductReviewsMapper;
 import com.cc.qylgjavaservice.service.ProductReviewsService;
@@ -16,11 +18,15 @@ public class ProductReviewsServiceImpl extends ServiceImpl<ProductReviewsMapper,
     @Autowired
     private OrdersMapper ordersMapper;
 
+    @Autowired
+    private CustomOrderMapper customOrderMapper;
+
     @Override
     public Result<Long> addReview(ProductReviews productReviews) {
         Long currentUserId = UserContext.getCurrentUserId();
         Long orderId = productReviews.getOrderId();
         Orders orders = ordersMapper.selectById(orderId);
+
         if (orders!=null){
             if (!orders.getUserId().equals(currentUserId))
                 return Result.fail("无权评价此订单");
@@ -33,9 +39,21 @@ public class ProductReviewsServiceImpl extends ServiceImpl<ProductReviewsMapper,
                 return Result.fail(500,"插入失败");
             }
         }
-        else {
-            return Result.fail(500,"不存在订单");
+
+        CustomOrder customOrder = customOrderMapper.selectById(orderId);
+        if (customOrder!=null){
+            if (!customOrder.getUserId().equals(currentUserId))
+                return Result.fail("无权评价此订单");
+            productReviews.setUserId(currentUserId);
+            boolean save = this.save(productReviews);
+            if (save){
+                return Result.success();
+            }
+            else {
+                return Result.fail(500,"插入失败");
+            }
         }
 
+        return Result.fail(500,"插入失败");
     }
 }

@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.cc.qylgjavaservice.mapper.ProductReviewMapper">
+    <select id="selectMyReviews"
+            resultType="com.cc.qylgjavaservice.dto.MyReviewDTO">
+
+        SELECT
+            r.id,
+            r.content,
+            r.rate,
+            r.images,
+            r.created_at AS publishedAt,
+            r.goods_id AS goodsId,
+            p.title,
+            p.cover,
+            p.price,
+            p.max_price,
+            p.min_price
+        FROM product_reviews r
+                 LEFT JOIN products p
+                           ON r.goods_id = p.id
+        WHERE r.user_id = #{userId}
+        ORDER BY r.created_at DESC
+
+    </select>
+</mapper>

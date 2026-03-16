@@ -60,6 +60,7 @@ public class UploadServiceImpl extends ServiceImpl<UpLoadMapper, FileDTO> implem
 
         }
         catch (Exception e) {
+            System.out.println(e);
             throw new RuntimeException("上传失败");
         }
     }
