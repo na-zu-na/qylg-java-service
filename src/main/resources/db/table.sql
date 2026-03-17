@@ -318,6 +318,8 @@ CREATE TABLE chat_messages (
 
                                sender_id BIGINT NOT NULL,
 
+                                receiver_id BIGINT NOT NULL,
+
                                content TEXT NOT NULL,
 
                                msg_type VARCHAR(20) DEFAULT 'text',
