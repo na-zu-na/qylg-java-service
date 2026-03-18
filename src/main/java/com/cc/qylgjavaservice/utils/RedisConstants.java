@@ -9,4 +9,6 @@ public class RedisConstants {
     public static final String PRODUCT_KEY = "shop:all:products:";
     public static final String CS_QUEUE_KEY = "cs:queue";
     public static final String CUSTOMER_SERVICE = "cs:map";
+    public static final String ACK_RETRY_QUEUE = "im:ack:retry_queue";
+    public static final String ACK_RETRY_COUNT = "im:ack:retry_count:";
 }

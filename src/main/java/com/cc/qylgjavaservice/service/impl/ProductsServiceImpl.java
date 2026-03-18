@@ -10,6 +10,7 @@ import com.cc.qylgjavaservice.mapper.ProductsMapper;
 import com.cc.qylgjavaservice.service.ProductsService;
 import org.redisson.api.RBucket;
 import org.redisson.api.RedissonClient;
+import org.redisson.codec.JsonJacksonCodec;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -18,7 +19,6 @@ import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import static com.cc.qylgjavaservice.utils.RedisConstants.HOT_PRODUCT_KEY;
 import static com.cc.qylgjavaservice.utils.RedisConstants.PRODUCT_KEY;
@@ -34,11 +34,11 @@ public class ProductsServiceImpl extends ServiceImpl<ProductsMapper,Products> im
 
     @Override
     public Result<List<ProductsDTO>> getShopRecommend() {
-        RBucket<List<Products>> hotProductsRBucket=redissonClient.getBucket(HOT_PRODUCT_KEY);
-        RBucket<List<ProductsDTO>> productsRBucket=redissonClient.getBucket(PRODUCT_KEY);
-        //查缓存
-        if (productsRBucket.isExists()){
-            return Result.success(productsRBucket.get());
+        RBucket<ProductCacheDTO> hotProductsRBucket=redissonClient.getBucket(HOT_PRODUCT_KEY,new JsonJacksonCodec());
+        RBucket<ProductCacheDTO> bucket = redissonClient.getBucket(PRODUCT_KEY, new JsonJacksonCodec());
+
+        if (bucket.isExists()) {
+            return Result.success(bucket.get().getList());
         }
 
         List<Products> allProducts = productsMapper.selectList(
@@ -58,9 +58,6 @@ public class ProductsServiceImpl extends ServiceImpl<ProductsMapper,Products> im
         // 内存随机
         Collections.shuffle(allProducts);
 
-        // 取前 20，防止不足 20 个报错
-        int limit = Math.min(20, allProducts.size());
-        List<Products> products=allProducts.subList(0, limit);
 
         //转化为DTO，添加hot
         List<ProductsDTO> productsDTOS=allProducts.stream().map(p -> {
@@ -72,18 +69,31 @@ public class ProductsServiceImpl extends ServiceImpl<ProductsMapper,Products> im
             return pd;
         }).toList();
 
+        //转化为DTO，添加hot
+        List<ProductsDTO> hotProductsDTOS=hotProducts.stream().map(p -> {
+            ProductsDTO pd=new ProductsDTO();
+            BeanUtil.copyProperties(p,pd);
+            return pd;
+        }).toList();
+
+        // 构建
+        ProductCacheDTO cache = new ProductCacheDTO();
+        ProductCacheDTO hotCache = new ProductCacheDTO();
+        cache.setList(productsDTOS);
+        hotCache.setList(hotProductsDTOS);
+
         //存入redis
-        productsRBucket.set(productsDTOS, Duration.ofMinutes(10));
-        hotProductsRBucket.set(hotProducts,Duration.ofMinutes(10));
+        bucket.set(cache, Duration.ofMinutes(10));
+        hotProductsRBucket.set(hotCache,Duration.ofMinutes(10));
 
         return Result.success(productsDTOS);
     }
 
     @Override
-    public Result<List<Products>> getHotProducts() {
-        RBucket<List<Products>> hotProductsRBucket=redissonClient.getBucket(HOT_PRODUCT_KEY);
+    public Result<List<ProductsDTO>> getHotProducts() {
+        RBucket<ProductCacheDTO> hotProductsRBucket=redissonClient.getBucket(HOT_PRODUCT_KEY,new JsonJacksonCodec());
         if (hotProductsRBucket.isExists()){
-            return Result.success(hotProductsRBucket.get());
+            return Result.success(hotProductsRBucket.get().getList());
         }
 
         List<Products> products = productsMapper.selectList(new LambdaQueryWrapper<Products>().
@@ -91,8 +101,20 @@ public class ProductsServiceImpl extends ServiceImpl<ProductsMapper,Products> im
                 last("LIMIT 20"));
 
         if (!products.isEmpty()){
-            hotProductsRBucket.set(products,Duration.ofMinutes(10));
-            return Result.success(products);
+            List<ProductsDTO> hotProductsDTOS=products.stream().map(p -> {
+                ProductsDTO pd=new ProductsDTO();
+                BeanUtil.copyProperties(p,pd);
+                return pd;
+            }).toList();
+
+            // 构建
+            ProductCacheDTO hotCache = new ProductCacheDTO();
+            hotCache.setList(hotProductsDTOS);
+
+            //存入redis
+            hotProductsRBucket.set(hotCache,Duration.ofMinutes(10));
+
+            return Result.success(hotProductsDTOS);
         }
         else {
             return Result.fail(404,"没找到");

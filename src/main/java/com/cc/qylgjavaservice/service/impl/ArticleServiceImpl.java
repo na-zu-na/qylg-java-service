@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.cc.qylgjavaservice.dto.articleDTO.ArticleCacheDTO;
 import com.cc.qylgjavaservice.dto.articleDTO.CommentsDTO;
 import com.cc.qylgjavaservice.dto.articleDTO.ArticleDTO;
 import com.cc.qylgjavaservice.dto.articleDTO.ArticleDetailDTO;
@@ -16,6 +17,8 @@ import com.cc.qylgjavaservice.service.ArticleService;
 import com.cc.qylgjavaservice.utils.UserContext;
 import org.redisson.api.RBucket;
 import org.redisson.api.RedissonClient;
+import org.redisson.client.codec.StringCodec;
+import org.redisson.codec.JsonJacksonCodec;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -49,12 +52,12 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper,Articles> impl
 
     @Override
     public Result<List<ArticleDTO>> getHotArticle() {
-        RBucket<List<ArticleDTO>> bucket=redissonClient.getBucket(HOT_ARTICLE_KEY);
+        RBucket<ArticleCacheDTO> bucket=redissonClient.getBucket(HOT_ARTICLE_KEY,new JsonJacksonCodec());
         List<ArticleDTO> articleDTOList;
 
         //查缓存
         if (bucket.isExists()){
-            articleDTOList = bucket.get();
+            articleDTOList = bucket.get().getArticleDTOList();
             return Result.success(articleDTOList);
         }
 
@@ -62,7 +65,9 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper,Articles> impl
         articleDTOList = articleMapper.selectHotArticle();
         if (articleDTOList!=null && !articleDTOList.isEmpty())
         {
-            bucket.set(articleDTOList, Duration.ofMinutes(10));
+            ArticleCacheDTO articleCacheDTO=new ArticleCacheDTO();
+            articleCacheDTO.setArticleDTOList(articleDTOList);
+            bucket.set(articleCacheDTO, Duration.ofMinutes(10));
             return Result.success(articleDTOList);
         }
         return Result.fail(404,"无热点数据");
@@ -70,7 +75,7 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper,Articles> impl
 
     @Override
     public Result<List<ArticleDTO>> getDiscoverList(int type) {
-        RBucket<List<ArticleDTO>> bucket=redissonClient.getBucket(DISCOVER_LIST_KEY_PREFIX+type);
+        RBucket<List<ArticleDTO>> bucket=redissonClient.getBucket(DISCOVER_LIST_KEY_PREFIX+type,new JsonJacksonCodec());
 
         //查缓存
         if (bucket.isExists()){

@@ -9,4 +9,8 @@ public interface ChatService {
     ChatMessage sendMessage(ChatMessage message);
 
     Result<ChatSessionVO> getOrCreateSession(Long senderId,Long receiverId,Long orderId) throws Exception;
+
+    void ackMessage(Long messageId);
+
+    void addAckRetryTask(Long id, int i);
 }

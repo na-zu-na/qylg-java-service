@@ -15,6 +15,8 @@ public class Conversation {
 
     private Long orderId;
 
+    private Long currentCsId;
+
     private String lastMessage;
 
     private LocalDateTime lastMessageTime;

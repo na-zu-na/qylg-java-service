@@ -9,7 +9,7 @@ import java.util.List;
 public interface ProductsService {
     Result<List<ProductsDTO>> getShopRecommend();
 
-    Result<List<Products>> getHotProducts();
+    Result<List<ProductsDTO>> getHotProducts();
 
     Result<List<Products>> searchProducts(String keyword, String type);
 

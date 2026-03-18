@@ -13,17 +13,19 @@ import com.cc.qylgjavaservice.mapper.ConversationMemberMapper;
 import com.cc.qylgjavaservice.service.ChatService;
 import com.cc.qylgjavaservice.service.UserService;
 import com.cc.qylgjavaservice.utils.UserContext;
+import org.redisson.api.RBucket;
+import org.redisson.api.RScoredSortedSet;
 import org.redisson.api.RScript;
 import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
 
-import static com.cc.qylgjavaservice.utils.RedisConstants.CS_QUEUE_KEY;
-import static com.cc.qylgjavaservice.utils.RedisConstants.CUSTOMER_SERVICE;
+import static com.cc.qylgjavaservice.utils.RedisConstants.*;
 
 @Service
 public class ChatServiceImpl implements ChatService {
@@ -87,12 +89,15 @@ public class ChatServiceImpl implements ChatService {
         //保存消息
         chatMessageMapper.insert(message);
 
+        message.setId(message.getId());
+
         return message;
     }
 
     @Override
     public Result<ChatSessionVO> getOrCreateSession(Long senderId,Long receiverId, Long orderId) throws Exception {
         Long currentUserId = UserContext.getCurrentUserId();
+        Long conversationId = null;
 
         //分配客服
         if (receiverId==null){
@@ -102,7 +107,7 @@ public class ChatServiceImpl implements ChatService {
             }
         } else {
             String lua="local res=redis.call('ZSCORE',KEYS[1],ARGV[1]);" +
-                    "if not res then return nil end;" +
+                    "if not res then return 1 end;" +
                     "if tonumber(res) >= 10 then return 1 end;" +
                     "redis.call('ZINCRBY',KEYS[1],1,ARGV[1])" +
                     "redis.call('HSET',KEYS[2],ARGV[2],ARGV[1])" +
@@ -129,11 +134,29 @@ public class ChatServiceImpl implements ChatService {
                 code = ((Long) result).intValue();
             }
             if (code == 1) {
-                return Result.fail(503, "客服繁忙，请稍后再试");
+                conversationId = findExistingConversationId(senderId, receiverId);
+
+                Long l=allocateCustomerService(senderId);
+                if (l!=null){
+                    receiverId=l;
+                    initConversationMembers(conversationId, senderId, receiverId);
+
+                    Conversation conv = new Conversation();
+                    conv.setId(conversationId);
+                    conv.setCurrentCsId(receiverId); // 显式更新当前客服为 C
+                    conv.setLastMessageTime(LocalDateTime.now());
+                    conversationMapper.updateById(conv);
+                }
+                else {
+                    return Result.fail(503,"暂无可用客服");
+                }
             }
         }
 
-        Long conversationId = findExistingConversationId(senderId, receiverId);
+        if (conversationId==null){
+            conversationId = findExistingConversationId(senderId, receiverId);
+        }
+
 
         if (conversationId == null) {
             // 如果不存在，创建新会话
@@ -141,6 +164,9 @@ public class ChatServiceImpl implements ChatService {
             newConversation.setType(1); // 1: 私聊
             if (orderId != null) {
                 newConversation.setOrderId(orderId);
+            }
+            if (receiverId!=null){
+                newConversation.setCurrentCsId(receiverId);
             }
             newConversation.setLastMessageTime(LocalDateTime.now());
             // 新会话暂无最后消息内容，可留空或设为"会话已创建"
@@ -174,6 +200,40 @@ public class ChatServiceImpl implements ChatService {
 
     }
 
+    @Override
+    public void ackMessage(Long messageId) {
+        ChatMessage msg = new ChatMessage();
+        msg.setId(messageId);
+        msg.setStatus(2); // 已送达
+
+        //从 Redis ZSet 移除
+        RScoredSortedSet<String> scoredSortedSet = redissonClient.getScoredSortedSet(ACK_RETRY_QUEUE);
+        scoredSortedSet.remove(String.valueOf(messageId));
+
+        //清理对应的重试次数计数器
+        RBucket<Object> bucket = redissonClient.getBucket(ACK_RETRY_COUNT+messageId);
+        bucket.delete();
+
+        chatMessageMapper.updateById(msg);
+    }
+
+    @Override
+    public void addAckRetryTask(Long messageId, int retryCount) {
+        RScoredSortedSet<String> scoredSortedSet = redissonClient.getScoredSortedSet(ACK_RETRY_QUEUE);
+        RBucket<Object> bucket = redissonClient.getBucket(ACK_RETRY_COUNT+messageId);
+
+        String member = String.valueOf(messageId);
+
+        // 计算延迟时间：指数退避 5s, 10s, 20s...
+        long delaySeconds = 5L * (1L << retryCount);
+        long score=System.currentTimeMillis()+(delaySeconds*1000);
+
+        boolean add = scoredSortedSet.add(score,member);
+
+        // 同时更新/设置重试次数计数器 (用于定时任务判断是否超过最大次数)
+        bucket.set(retryCount, Duration.ofMinutes(30));
+    }
+
     //查询历史记录
     public List<ChatMessage> getHistory(Long conversationId, Long lastId) {
         QueryWrapper<ChatMessage> wrapper=new QueryWrapper<>();
@@ -181,8 +241,7 @@ public class ChatServiceImpl implements ChatService {
         //实现分页查询
         wrapper.eq("conversation_id", conversationId)
                 .lt(lastId!=null,"id",lastId)
-                .orderByAsc("created_at")
-                .last("limit 20");
+                .orderByAsc("created_at");
 
         return chatMessageMapper.selectList(wrapper);
     }
@@ -219,7 +278,7 @@ public class ChatServiceImpl implements ChatService {
         );
 
         if (result == null) {
-            throw new Exception("当前暂无在线客服，请稍后再试");
+            return null;
         }
 
         return Long.valueOf(result.toString());

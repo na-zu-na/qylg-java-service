@@ -283,6 +283,7 @@ CREATE TABLE conversations (
 
                                last_message TEXT,
                                last_message_time TIMESTAMP,
+                                current_cs_id int,
 
                                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -327,6 +328,8 @@ CREATE TABLE chat_messages (
                                status SMALLINT DEFAULT 1,
 
                                extra JSONB,
+
+                               client_msg_id VARCHAR(64),
 
                                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 

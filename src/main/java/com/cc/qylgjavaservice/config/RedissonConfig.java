@@ -1,7 +1,10 @@
 package com.cc.qylgjavaservice.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.redisson.Redisson;
 import org.redisson.api.RedissonClient;
+import org.redisson.client.codec.StringCodec;
 import org.redisson.codec.JsonJacksonCodec;
 import org.redisson.config.Config;
 import org.springframework.beans.factory.annotation.Value;
@@ -15,9 +18,9 @@ public class RedissonConfig {
 
     @Bean
     public RedissonClient redissonClient(){
-        Config config=new Config();
+        Config config = new Config();
         config.useSingleServer().setAddress(address);
-        config.setCodec(new JsonJacksonCodec());
+        config.setCodec(StringCodec.INSTANCE);
         return Redisson.create(config);
     }
 

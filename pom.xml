@@ -108,6 +108,11 @@
             <artifactId>redisson</artifactId>
             <version>4.3.0</version>
         </dependency>
+
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jsr310</artifactId>
+        </dependency>
         <!-- JWT 核心 -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>

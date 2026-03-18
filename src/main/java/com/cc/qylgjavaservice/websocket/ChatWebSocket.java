@@ -1,5 +1,6 @@
 package com.cc.qylgjavaservice.websocket;
 
+import com.alibaba.fastjson2.JSONObject;
 import com.cc.qylgjavaservice.entity.ChatMessage;
 import com.cc.qylgjavaservice.service.ChatService;
 import jakarta.websocket.OnClose;
@@ -111,22 +112,50 @@ public class ChatWebSocket {
     @OnMessage
     public void onMessage(String messageJson, Session session) throws Exception {
 
-        ChatMessage message = JSON.parseObject(messageJson, ChatMessage.class);
+        JSONObject obj = JSON.parseObject(messageJson);
+        String type = obj.getString("type");
 
-        // 存储消息
-        ChatMessage chatMessage = chatService.sendMessage(message);
-        Long conversationId = chatMessage.getConversationId();
-        if (!Objects.equals(conversationId, message.getConversationId())){
-            message.setConversationId(conversationId);
+        if (Objects.equals(type, "CHAT")){
+            ChatMessage message = obj.getObject("data", ChatMessage.class);
+            // 存储消息
+            ChatMessage chatMessage = chatService.sendMessage(message);
+            Long conversationId = chatMessage.getConversationId();
+            if (!Objects.equals(conversationId, message.getConversationId())){
+                message.setConversationId(conversationId);
+            }
+
+            // 推送给接收方
+            Session receiver = UserSessionManager.get(message.getReceiverId());
+
+            if (receiver != null) {
+                JSONObject resp = pushToReceiver(message,chatMessage);
+                chatService.addAckRetryTask(chatMessage.getId(), 0);
+                receiver.getBasicRemote().sendText(resp.toJSONString());
+            }
         }
 
-        // 推送给接收方
-        Session receiver = UserSessionManager.get(message.getReceiverId());
+        else if ("ACK".equals(type)) {
 
-        if (receiver != null) {
-            messageJson=JSON.toJSONString(message);
-            receiver.getBasicRemote().sendText(messageJson);
+            Long messageId = obj.getLong("messageId");
+
+            chatService.ackMessage(messageId);
+
         }
+    }
+
+    private JSONObject pushToReceiver(ChatMessage message,ChatMessage chatMessage) {
+        JSONObject resp = new JSONObject();
+        resp.put("type", "CHAT");
+        resp.put("messageId", chatMessage.getId().toString());
+        resp.put("content", message.getContent());
+        Long chatMessageConversationId = chatMessage.getConversationId();
+        if (!Objects.equals(chatMessageConversationId, message.getConversationId())){
+            message.setConversationId(chatMessageConversationId);
+        }
+        resp.put("conversationId",message.getConversationId());
+        resp.put("receiverId",message.getReceiverId());
+
+        return resp;
     }
 
 }
