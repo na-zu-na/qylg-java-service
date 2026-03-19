@@ -11,7 +11,7 @@ public interface ProductsService {
 
     Result<List<ProductsDTO>> getHotProducts();
 
-    Result<List<Products>> searchProducts(String keyword, String type);
+    Result<List<Products>> searchProducts(String keyword, String type,String sorKey, String sortOrder);
 
     Result<List<Products>> getMassGoodsList(MassProductsQueryDTO dto);
 
