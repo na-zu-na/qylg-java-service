@@ -49,7 +49,7 @@
 | 类别 | 技术选型                                |
 | :--- |:------------------------------------|
 | **后端框架** | Spring Boot 4, Spring MVC           |
-| **数据库** | MySQL, PostgreSQL (JSONB/数组聚合)      |
+| **数据库** | PostgreSQL (JSONB/数组聚合)      |
 | **搜索引擎** | Elasticsearch (全文检索/拼音分词)           |
 | **缓存/中间件** | Redis (Redisson 客户端), Cloudflare R2 |
 | **通讯协议** | WebSocket, RESTful API              |
