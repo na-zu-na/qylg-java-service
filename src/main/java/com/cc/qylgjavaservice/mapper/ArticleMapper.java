@@ -8,6 +8,7 @@ import com.cc.qylgjavaservice.entity.Articles;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Mapper
@@ -23,4 +24,8 @@ public interface ArticleMapper extends BaseMapper<Articles> {
     List<CommentsDTO> selectArticleComments(@Param("id") int id);
 
     List<ArticleDTO> selectMyArticle(@Param("id") Long id,@Param("sortKey") String sortKey, @Param("timeOrder") String timeOrder);
+
+    List<ArticleDTO> searchArticle(@Param("keyword") String keyword);
+
+    List<ArticleDTO> searchArticleList(@Param("list") ArrayList<Long> list);
 }

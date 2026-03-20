@@ -8,6 +8,7 @@ import com.cc.qylgjavaservice.dto.articleDTO.ArticleLikeDTO;
 import com.cc.qylgjavaservice.dto.articleDTO.LikeActionDTO;
 import com.cc.qylgjavaservice.entity.Articles;
 import com.cc.qylgjavaservice.service.ArticleService;
+import com.cc.qylgjavaservice.service.ArticleSyncService;
 import com.cc.qylgjavaservice.service.impl.ArticleLikeService;
 import jakarta.annotation.Resource;
 import org.springframework.web.bind.annotation.*;
@@ -22,6 +23,9 @@ public class ArticleController {
 
     @Resource
     private ArticleLikeService articleLikeService;
+
+    @Resource
+    private ArticleSyncService articleSyncService;
 
 
     @GetMapping("/articles")
@@ -67,5 +71,15 @@ public class ArticleController {
     @PostMapping("/api/article/post")
     public Result<Long> postArticle(@RequestBody Articles articles){
         return articleService.postArticle(articles);
+    }
+
+    @GetMapping("/article/search/init")
+    public void articleSearchInit(){
+        articleSyncService.syncAll();
+    }
+
+    @GetMapping("/article/search")
+    public List<ArticleDTO> searchArticle(@RequestParam(value = "keyword") String keyword){
+        return articleService.searchArticle(keyword);
     }
 }

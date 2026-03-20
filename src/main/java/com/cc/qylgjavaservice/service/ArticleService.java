@@ -22,4 +22,6 @@ public interface ArticleService {
     Result<Boolean> delMyArticle(Long id);
 
     Result<Long> postArticle(Articles articles);
+
+    List<ArticleDTO> searchArticle(String keyword);
 }

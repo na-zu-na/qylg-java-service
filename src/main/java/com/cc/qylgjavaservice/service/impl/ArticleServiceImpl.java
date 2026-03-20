@@ -1,32 +1,35 @@
 package com.cc.qylgjavaservice.service.impl;
 
+import co.elastic.clients.elasticsearch.ElasticsearchClient;
+import co.elastic.clients.elasticsearch._types.SortOrder;
+import co.elastic.clients.elasticsearch.core.SearchResponse;
+import co.elastic.clients.elasticsearch.core.search.Hit;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.cc.qylgjavaservice.dto.articleDTO.ArticleCacheDTO;
-import com.cc.qylgjavaservice.dto.articleDTO.CommentsDTO;
-import com.cc.qylgjavaservice.dto.articleDTO.ArticleDTO;
-import com.cc.qylgjavaservice.dto.articleDTO.ArticleDetailDTO;
+import com.cc.qylgjavaservice.dto.articleDTO.*;
 import com.cc.qylgjavaservice.dto.Result;
 import com.cc.qylgjavaservice.entity.ArticleLike;
 import com.cc.qylgjavaservice.entity.Articles;
 import com.cc.qylgjavaservice.mapper.ArticleLikeMapper;
 import com.cc.qylgjavaservice.mapper.ArticleMapper;
 import com.cc.qylgjavaservice.service.ArticleService;
+import com.cc.qylgjavaservice.service.ArticleSyncService;
 import com.cc.qylgjavaservice.utils.UserContext;
 import org.redisson.api.RBucket;
 import org.redisson.api.RedissonClient;
 import org.redisson.client.codec.StringCodec;
 import org.redisson.codec.JsonJacksonCodec;
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
+import java.util.*;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static com.cc.qylgjavaservice.utils.RedisConstants.*;
 
@@ -41,6 +44,12 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper,Articles> impl
 
     @Autowired
     private ArticleLikeMapper articleLikeMapper;
+
+    @Autowired
+    private ElasticsearchClient elasticsearchClient;
+
+    @Autowired
+    private ArticleSyncService articleSyncService;
 
     @Override
     public Result<Page<ArticleDTO>> getArticles(int current, int pageSize) {
@@ -165,6 +174,9 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper,Articles> impl
                 bucketDiscover.delete();
             }
 
+            //删除es
+            articleSyncService.delete(id);
+
             return Result.success(true);
         }
         else {
@@ -189,11 +201,80 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper,Articles> impl
             if (bucketDiscover.isExists()){
                 bucketDiscover.delete();
             }
+            //更新es
+            articleSyncService.syncOne(articles);
+
             return Result.success(id);
         }
         else {
             return Result.fail(500,"新增/修改文章失败");
         }
+    }
+
+    @Override
+    public List<ArticleDTO> searchArticle(String keyword) {
+        List<ArticleDocument> articleDocuments = searchFromEs(keyword);
+
+        if (articleDocuments.isEmpty()){
+            return searchFromDb(keyword);
+        }
+
+        List<Long> list = articleDocuments.stream().map(ArticleDocument::getId).toList();
+        ArrayList<Long> ids=new ArrayList<>(list);
+        List<ArticleDTO> articleDTOList = articleMapper.searchArticleList(ids);
+
+        //创建一个 Map: ID -> ArticleDTO，方便快速查找
+        Map<Long,ArticleDTO> map=articleDTOList.stream().collect(Collectors.toMap(ArticleDTO::getId, Function.identity()));
+
+        List<ArticleDTO> resDto=new ArrayList<>();
+        ids.forEach(i->{
+            ArticleDTO articleDTO = map.get(i);
+            if (articleDTO!=null){
+                resDto.add(articleDTO);
+            }
+        });
+
+        return resDto;
+
+    }
+
+
+    public List<ArticleDocument> searchFromEs(String keyword){
+        try{
+            SearchResponse<ArticleDocument> response=elasticsearchClient.search(s->
+                s.index("articles_index").query(q->q.bool(b->{
+                    b.should(sh->sh.matchPhrase(mp->mp
+                            .field("title")
+                            .query(keyword)
+                            .boost(10.0f)));
+                    b.should(sh->sh.multiMatch(mm->mm
+                            .query(keyword)
+                            .fields(
+                                    "title^5",
+                                    "title.pinyin^3",
+                                    "content"
+                            ).minimumShouldMatch("70%")
+                    ));
+                    b.minimumShouldMatch("1");
+
+                    return b;
+                }))
+                        .sort(so->so.score(
+                                sc->sc.order(SortOrder.Desc)
+                        ))
+            ,ArticleDocument.class);
+
+            return response.hits().hits().stream().map(Hit::source).filter(Objects::nonNull).toList();
+
+        } catch (Exception e){
+            e.printStackTrace();
+            return List.of();
+        }
+
+    }
+
+    public List<ArticleDTO> searchFromDb(String keyword){
+        return articleMapper.searchArticle(keyword);
     }
 
 

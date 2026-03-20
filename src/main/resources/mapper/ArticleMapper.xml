@@ -177,4 +177,54 @@
 
     </select>
 
+    <select id="searchArticle" resultMap="ArticleDTOMap">
+        SELECT
+            a.id,
+            a.title,
+            a.content,
+            a.images,
+            a.author_id AS authorId,
+            u.nick_name AS authorName,
+            a.published_at AS publishedAt,
+            a.category_id AS categoryId,
+            u.avatar_url AS avatarUrl,
+            COUNT(DISTINCT al.id) AS likeCount,
+            COUNT(DISTINCT ac.id) AS commentCount
+        FROM articles a
+                 LEFT JOIN article_likes al ON a.id = al.article_id
+                 LEFT JOIN article_comments ac ON a.id = ac.article_id
+                 LEFT JOIN users u ON a.author_id = u.id
+        WHERE a.status = 1
+          AND a.title ilike concat('%',#{keyword},'%')
+
+        GROUP BY a.id, u.nick_name, a.title, a.content, a.images, a.author_id, a.published_at,a.created_at,u.avatar_url
+        ORDER BY a.created_at DESC
+    </select>
+
+    <select id="searchArticleList" resultMap="ArticleDTOMap">
+        SELECT
+            a.id,
+            a.title,
+            a.content,
+            a.images,
+            a.author_id AS authorId,
+            u.nick_name AS authorName,
+            a.published_at AS publishedAt,
+            a.category_id AS categoryId,
+            u.avatar_url AS avatarUrl,
+            COUNT(DISTINCT al.id) AS likeCount,
+            COUNT(DISTINCT ac.id) AS commentCount
+        FROM articles a
+                 LEFT JOIN article_likes al ON a.id = al.article_id
+                 LEFT JOIN article_comments ac ON a.id = ac.article_id
+                 LEFT JOIN users u ON a.author_id = u.id
+        WHERE a.status = 1
+          AND a.id in
+        <foreach item="id" collection="list" open="(" separator="," close=")">
+            #{id, jdbcType=BIGINT}
+        </foreach>
+        GROUP BY a.id, u.nick_name, a.title, a.content, a.images, a.author_id, a.published_at,a.created_at,u.avatar_url
+        ORDER BY a.created_at DESC
+    </select>
+
 </mapper>
