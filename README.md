@@ -103,15 +103,3 @@ src/main/java/com/example/project
 
 ```
 
----
-
-## 接口文档
-启动项目后访问 `http://localhost:8080/swagger-ui.html` 查看完整的 API 定义与测试用例。
-
-## 贡献指南
-欢迎提交 Issue 和 Pull Request。请确保代码符合 Alibaba Java 规范，并通过单元测试覆盖核心逻辑。
-
----
-
-## 许可证
-MIT License
