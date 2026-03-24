@@ -6,6 +6,7 @@ import com.cc.qylgjavaservice.dto.OrderDTO.OrderListDTO;
 import com.cc.qylgjavaservice.entity.Orders;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
 
 @Mapper
 public interface OrdersMapper extends BaseMapper<Orders> {
@@ -17,4 +18,11 @@ public interface OrdersMapper extends BaseMapper<Orders> {
     );
 
     OrderListDTO selectOrderDetail(Long id);
+
+    @Select("""
+    SELECT COALESCE(SUM(total_price), 0)
+    FROM orders
+    WHERE user_id = #{userId}
+""")
+    Long sumTotalSpend(Long userId);
 }

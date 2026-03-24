@@ -1,15 +1,24 @@
 package com.cc.qylgjavaservice.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.cc.qylgjavaservice.dto.ConversationSessionsDTO;
 import com.cc.qylgjavaservice.dto.Result;
+import com.cc.qylgjavaservice.dto.userDTO.AdminUserDetailDTO;
+import com.cc.qylgjavaservice.dto.userDTO.AdminUserListDTO;
 import com.cc.qylgjavaservice.dto.userDTO.UserDTO;
 import com.cc.qylgjavaservice.dto.WechatLoginRequest;
 import com.cc.qylgjavaservice.dto.WechatSessionDTO;
-import com.cc.qylgjavaservice.entity.Users;
-import com.cc.qylgjavaservice.mapper.UserMapper;
+import com.cc.qylgjavaservice.entity.*;
+import com.cc.qylgjavaservice.enums.UserRole;
+import com.cc.qylgjavaservice.enums.UserStatus;
+import com.cc.qylgjavaservice.mapper.*;
 import com.cc.qylgjavaservice.service.UserService;
 import com.cc.qylgjavaservice.utils.JwtUtil;
+import org.apache.catalina.User;
+import org.redisson.api.RBucket;
+import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DuplicateKeyException;
@@ -19,6 +28,11 @@ import org.springframework.web.util.UriComponentsBuilder;
 import tools.jackson.databind.ObjectMapper;
 
 import java.net.URI;
+import java.time.Duration;
+import java.util.*;
+
+import static com.cc.qylgjavaservice.utils.RedisConstants.BLACKLIST_PREFIX;
+import static com.cc.qylgjavaservice.utils.RedisConstants.USER_TOKEN_KEY;
 
 @Service
 public class UserServiceImpl extends ServiceImpl<UserMapper,Users> implements UserService {
@@ -38,6 +52,24 @@ public class UserServiceImpl extends ServiceImpl<UserMapper,Users> implements Us
 
     @Autowired
     private UserMapper userMapper;
+
+    @Autowired
+    private RedissonClient redissonClient;
+
+    @Autowired
+    private OrdersMapper orderMapper;
+
+    @Autowired
+    private CustomOrderMapper customOrderMapper;
+
+    @Autowired
+    private ArticleMapper articleMapper;
+
+    @Autowired
+    private AddressesMapper addressMapper;
+
+    @Autowired
+    private ConversationMemberMapper conversationMemberMapper;
 
     @Autowired
     public UserServiceImpl(RestClient restClient,ObjectMapper objectMapper) {
@@ -130,4 +162,144 @@ public class UserServiceImpl extends ServiceImpl<UserMapper,Users> implements Us
 
         return  Result.success(user);
     }
+
+    @Override
+    public Result<Object> changeUserStatus(Long userId) {
+        Users users = userMapper.selectById(userId);
+        if (users!=null){
+            if (users.getStatusCode()==UserStatus.BANNED){
+                users.setStatusCode(UserStatus.NORMAL);
+            }
+            else users.setStatusCode(UserStatus.BANNED);
+            int i = userMapper.updateById(users);
+            if (i==1){
+                return Result.success();
+            }
+            else {
+                return Result.fail(500,"无法更新");
+            }
+        }
+        return Result.fail(500,"不存在用户");
+    }
+
+    @Override
+    public Result<Object> setUserBlackList(Long userId) {
+        RBucket<String> tokenBucket = redissonClient.getBucket(USER_TOKEN_KEY+userId);
+        if (!tokenBucket.isExists()){
+            return Result.fail(500,"用户未登录");
+        }
+        String token = tokenBucket.get();
+        RBucket<String> blackBucket = redissonClient.getBucket(BLACKLIST_PREFIX + token);
+        if (!blackBucket.isExists()){
+            blackBucket.set("requestDenied", Duration.ofHours(2));
+            return Result.success();
+        }
+
+        return Result.fail(500,"黑名单已存在");
+
+    }
+
+    @Override
+    public Result<AdminUserListDTO> getUsersList(String keyword, String status) {
+        UserStatus s = null;
+        AdminUserListDTO adminUserListDTO = new AdminUserListDTO();
+
+        if (Objects.equals(status, "normal")) {
+            s = UserStatus.NORMAL;
+        } else if (Objects.equals(status, "disabled")) {
+            s = UserStatus.BANNED;
+        }
+
+        LambdaQueryWrapper<Users> wrapper = new LambdaQueryWrapper<Users>()
+                .eq(Users::getRoleCode, UserRole.USER);
+
+        // 状态筛选
+        if (s != null) {
+            wrapper.eq(Users::getStatusCode, s);
+        }
+
+        // 关键词筛选
+        if (keyword != null && !keyword.trim().isEmpty()) {
+            String kw = keyword.trim();
+
+            wrapper.and(w -> {
+                // 如果 keyword 是纯数字，可以查 id
+                if (kw.matches("\\d+")) {
+                    w.eq(Users::getId, Long.valueOf(kw)).or();
+                }
+                w.like(Users::getNickName, kw)
+                        .or()
+                        .like(Users::getOpenId, kw);
+            });
+        }
+
+        List<Users> users = userMapper.selectList(wrapper);
+
+        adminUserListDTO.setStats(userMapper.getUserStats());
+        adminUserListDTO.setUsers(users);
+
+        return Result.success(adminUserListDTO);
+    }
+
+    @Override
+    public Result<AdminUserDetailDTO> getUsersDetail(Long userId) {
+            AdminUserDetailDTO dto = new AdminUserDetailDTO();
+
+            // 1. 用户基本信息
+            Users user = userMapper.selectById(userId);
+            dto.setUsers(user);
+
+            // 2. 各种统计
+            dto.setOrderCount(orderMapper.selectCount(
+                    new LambdaQueryWrapper<Orders>().eq(Orders::getUserId, userId)
+            ).intValue());
+
+            dto.setCustomOrderCount(customOrderMapper.selectCount(
+                    new LambdaQueryWrapper<CustomOrder>().eq(CustomOrder::getUserId, userId)
+            ).intValue());
+
+            dto.setArticleCount(articleMapper.selectCount(
+                    new LambdaQueryWrapper<Articles>().eq(Articles::getAuthorId, userId)
+            ).intValue());
+
+            // 3. 总消费
+            Long totalSpend = orderMapper.sumTotalSpend(userId);
+            dto.setTotalSpend(totalSpend == null ? 0 : totalSpend);
+
+            // 4. 地址
+            Addresses address = addressMapper.selectOne(
+                    new LambdaQueryWrapper<Addresses>().eq(Addresses::getUserId, userId).last("limit 1")
+            );
+            dto.setAddresses(address);
+
+            // 5. 订单历史
+            List<Orders> orders = orderMapper.selectList(
+                    new LambdaQueryWrapper<Orders>()
+                            .eq(Orders::getUserId, userId)
+                            .orderByDesc(Orders::getCreatedAt)
+            );
+            dto.setOrderHistory(orders);
+
+            // 6. 定制订单
+            List<CustomOrder> customOrders = customOrderMapper.selectList(
+                    new LambdaQueryWrapper<CustomOrder>()
+                            .eq(CustomOrder::getUserId, userId)
+                            .orderByDesc(CustomOrder::getCreatedAt)
+            );
+            dto.setCustomOrders(customOrders);
+
+            // 7. 文章
+            List<Articles> articles = articleMapper.selectList(
+                    new LambdaQueryWrapper<Articles>()
+                            .eq(Articles::getAuthorId, userId)
+                            .orderByDesc(Articles::getCreatedAt)
+            );
+            dto.setArticlesList(articles);
+
+            // 8. 会话
+            List<ConversationSessionsDTO> sessions = conversationMemberMapper.getConversationSessionsByUserId(userId);
+            dto.setConversationMemberList(sessions);
+
+            return Result.success(dto);
+        }
 }

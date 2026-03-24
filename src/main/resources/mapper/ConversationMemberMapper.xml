@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.cc.qylgjavaservice.mapper.ConversationMemberMapper">
+    <select id="getConversationSessionsByUserId" resultType="com.cc.qylgjavaservice.dto.ConversationSessionsDTO">
+        select
+            c.conversation_id as id,
+            max(c.joined_at) as createdAt,
+            max(case when c.role &lt; 2 then c.user_id end) as agent
+        from conversation_members c
+        where c.conversation_id in (
+            select conversation_id
+            from conversation_members
+            where user_id = #{id}
+        )
+        group by c.conversation_id
+    </select>
+
+</mapper>

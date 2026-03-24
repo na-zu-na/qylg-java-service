@@ -78,11 +78,11 @@ public class ChatServiceImpl implements ChatService {
             conversationMember.setUser_id(message.getSenderId());
             conversationMember.setConversation_id(message.getConversationId());
             if (message.getSenderId()>100 && message.getSenderId()<200){
-                conversationMember.setRole(2);
+                conversationMember.setRole(1);
             } else if (message.getSenderId()>200 && message.getSenderId()<300) {
-                conversationMember.setRole(3);
+                conversationMember.setRole(0);
             }
-            else conversationMember.setRole(1);
+            else conversationMember.setRole(2);
             conversationMemberMapper.insert(conversationMember);
         }
 

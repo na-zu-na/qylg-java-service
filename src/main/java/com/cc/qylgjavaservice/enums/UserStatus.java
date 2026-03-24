@@ -8,8 +8,8 @@ import lombok.Getter;
 @Getter
 @AllArgsConstructor
 public enum UserStatus implements IEnum<Integer> {
-    BANNED(0),
-    NORMAL(1);
+    BANNED(1),
+    NORMAL(0);
 
     @EnumValue
     private final int status_code;
