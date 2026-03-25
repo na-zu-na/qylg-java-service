@@ -3,10 +3,10 @@ package com.cc.qylgjavaservice.service.impl;
 import cn.hutool.core.bean.BeanUtil;
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import co.elastic.clients.elasticsearch._types.SortOrder;
-import co.elastic.clients.elasticsearch._types.query_dsl.Operator;
 import co.elastic.clients.elasticsearch.core.SearchResponse;
 import co.elastic.clients.elasticsearch.core.search.Hit;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.cc.qylgjavaservice.dto.Result;
 import com.cc.qylgjavaservice.dto.productsDTO.*;
@@ -20,6 +20,7 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import tools.jackson.databind.ObjectMapper;
 
 import java.math.BigDecimal;
 import java.time.Duration;
@@ -41,6 +42,9 @@ public class ProductsServiceImpl extends ServiceImpl<ProductsMapper,Products> im
 
     @Autowired
     private ElasticsearchClient elasticsearchClient;
+
+    @Autowired
+    private ObjectMapper objectMapper;
 
     @Override
     public Result<List<ProductsDTO>> getShopRecommend() {
@@ -457,4 +461,173 @@ public class ProductsServiceImpl extends ServiceImpl<ProductsMapper,Products> im
             return Result.fail(404,"没查到");
         }
     }
+
+    @Override
+    public Result<ProductsAdminDTO> getAdminProMass(int page, int pageSize, Integer status, String keyword) {
+        //查文章列表
+        Page<ProductsDTO> productsDTOPage =new Page<>(page,pageSize);
+        Page<ProductsDTO> products = productsMapper.selectAdminProductsPage(productsDTOPage,status,keyword);
+
+        //组装page
+        ProductsAdminDTO productsAdminDTO =new ProductsAdminDTO();
+        productsAdminDTO.setSize(products.getSize());
+        productsAdminDTO.setTotal(products.getTotal());
+        productsAdminDTO.setCurrent(products.getCurrent());
+
+        //统计参数
+        ProductStatsDTO productStatsDTO=productsMapper.selectProductStats();
+        productsAdminDTO.setProductStatsDTO(productStatsDTO);
+
+        List<ProductsDTO> records = products.getRecords();
+        records.forEach(i->{
+            if (i.getTotalSales()>1000)
+                i.setHot(true);
+        });
+
+        productsAdminDTO.setProductsDTOS(records);
+
+        return Result.success(productsAdminDTO);
+    }
+
+    @Override
+    public Result<Void> updateProductStatus(Long id, Integer status) {
+        // 1. 参数校验
+        if (id == null) {
+            return Result.fail(400, "ID不能为空");
+        }
+        if (status == null) {
+            return Result.fail(400, "状态不能为空");
+        }
+        if (status != 0 && status != 1) {
+            return Result.fail(400, "状态值非法（0正常，1下架）");
+        }
+
+        // 2. 判断是否存在
+        Products products = productsMapper.selectById(id);
+        if (products == null) {
+            return Result.fail(404, "文章不存在");
+        }
+
+        // 3. 更新
+        products.setStatus(status);
+        int rows = productsMapper.updateById(products);
+
+        return rows > 0 ? Result.success() : Result.fail("文章状态更新失败");
+    }
+
+    @Override
+    public Result<Long> addMassProduct(Products dto) {
+
+        // 1. 参数校验
+        if (dto == null) {
+            return Result.fail(400, "请求参数不能为空");
+        }
+        validateParam(dto);
+
+        // 2. DTO -> Entity
+        Products product = new Products();
+        product.setTitle(dto.getTitle());
+        product.setCover(dto.getCover());
+        product.setType(dto.getType());
+        product.setPurpose(dto.getPurpose());
+        product.setPrice(dto.getPrice());
+        product.setTotalSales(dto.getTotalSales() == null ? 0 : dto.getTotalSales());
+        product.setStatus(dto.getStatus());
+        product.setStock(dto.getStock());
+        product.setDescription(dto.getDescription());
+
+        if (dto.getAnchor() != null) {
+            product.setAnchor(objectMapper.writeValueAsString(dto.getAnchor()));
+        }
+        if (dto.getImages() != null) {
+            product.setImages(dto.getImages());
+        }
+
+        // 3. 保存
+        int rows = productsMapper.insert(product);
+        if (rows<1) {
+            return Result.fail("新增商品失败");
+        }
+
+        // 4. 返回新增后的ID
+        return Result.success(product.getId());
+    }
+
+    @Override
+    public Result<Products> getMassProductDetail(Long productId) {
+        // 1. 参数校验
+        if (productId == null) {
+            return Result.fail(400, "商品ID不能为空");
+        }
+
+        // 2. 查询商品
+        Products product = productsMapper.selectById(productId);
+        if (product == null) {
+            return Result.fail(404, "商品不存在");
+        }
+
+        // 3. 校验商品类型
+        if (!"mass".equals(product.getType())) {
+            return Result.fail(400, "该商品不是大众商品");
+        }
+
+        return Result.success(product);
+    }
+
+    @Override
+    public Result<Long> editMassProduct(Products dto) {
+        // 1. 参数校验
+        if (dto == null) {
+            return Result.fail(400, "请求参数不能为空");
+        }
+        if (dto.getId() == null) {
+            return Result.fail(400, "商品ID不能为空");
+        }
+
+        validateParam(dto);
+
+        Products products = productsMapper.selectById(dto.getId());
+        if (products==null){
+            return Result.fail(404,"没有找到商品");
+        }
+
+        int i = productsMapper.updateById(dto);
+        if (i<1) {
+            return Result.fail("修改商品失败");
+        }
+
+        // 4. 返回新增后的ID
+        return Result.success(dto.getId());
+    }
+
+    private static void validateParam(Products dto) {
+        if (dto.getTitle() == null || dto.getTitle().trim().isEmpty()) {
+            Result.fail(400, "商品名称不能为空");
+            return;
+        }
+        if (dto.getType() == null || dto.getType().trim().isEmpty()) {
+            Result.fail(400, "商品类型不能为空");
+            return;
+        }
+        if (!"mass".equals(dto.getType())) {
+            Result.fail(400, "商品类型必须为 mass");
+            return;
+        }
+        if (dto.getPrice() == null) {
+            Result.fail(400, "商品价格不能为空");
+            return;
+        }
+        if (dto.getStatus() == null) {
+            Result.fail(400, "商品状态不能为空");
+            return;
+        }
+        if (dto.getStatus() != 0 && dto.getStatus() != 1) {
+            Result.fail(400, "商品状态非法，1表示启用，0表示下架");
+            return;
+        }
+        if (dto.getStock() == null) {
+            Result.fail(400, "库存不能为空");
+        }
+    }
 }
+

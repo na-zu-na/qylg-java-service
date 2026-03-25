@@ -96,4 +96,55 @@
           AND p.status = 1
 
     </select>
+
+    <select id="selectAdminProductsPage"
+            resultType="com.cc.qylgjavaservice.dto.productsDTO.ProductsDTO">
+        SELECT
+        id,
+        type,
+        title,
+        cover,
+        price,
+        min_price AS minPrice,
+        max_price AS maxPrice,
+        total_sales AS totalSales,
+        status,
+        purpose,
+        anchor,
+        stock,
+        created_at
+        FROM products
+        WHERE type = 'mass'
+
+        <if test="status != null">
+            AND status = #{status}
+        </if>
+
+        <if test="keyword != null and keyword != ''">
+            AND (
+            title LIKE CONCAT('%', #{keyword}, '%')
+            OR anchor LIKE CONCAT('%', #{keyword}, '%')
+
+            <if test="keyword.matches('^[0-9]+$')">
+                OR id = CAST(#{keyword} AS BIGINT)
+            </if>
+            )
+        </if>
+
+        ORDER BY id DESC
+    </select>
+
+    <select id="selectProductStats" resultType="com.cc.qylgjavaservice.dto.productsDTO.ProductStatsDTO">
+        SELECT
+        COUNT(*) AS totalCount,
+
+        SUM(CASE WHEN status = 1 THEN 1 ELSE 0 END) AS normal,
+
+        SUM(CASE WHEN stock &lt; 100 THEN 1 ELSE 0 END) AS lowStock,
+
+        SUM(CASE WHEN total_sales > 500 THEN 1 ELSE 0 END) AS hot
+
+        FROM products
+        WHERE type = 'mass'
+    </select>
 </mapper>

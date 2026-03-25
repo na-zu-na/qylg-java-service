@@ -22,4 +22,14 @@ public interface ProductsService {
     Result<List<Products>> getCustomGoodsList(MassProductsQueryDTO dto);
 
     Result<ProductsCustomDetailDTO> getProductCustomsDetail(Long id);
+
+    Result<ProductsAdminDTO> getAdminProMass(int page, int pageSize, Integer status, String keyword);
+
+    Result<Void> updateProductStatus(Long id, Integer status);
+
+    Result<Long> addMassProduct(Products dto);
+
+    Result<Products> getMassProductDetail(Long productId);
+
+    Result<Long> editMassProduct(Products dto);
 }

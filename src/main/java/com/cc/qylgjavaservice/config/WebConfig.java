@@ -16,6 +16,7 @@ public class WebConfig implements WebMvcConfigurer {
         registry.addInterceptor(jwtAuthInterceptor)
                 .addPathPatterns("/api/**")
                 .addPathPatterns("/admin/**")
-                .excludePathPatterns("/auth/wechat-login");
+                .excludePathPatterns("/auth/wechat-login")
+                .excludePathPatterns("/admin/login");
     }
 }

@@ -4,6 +4,7 @@ import com.cc.qylgjavaservice.entity.Products;
 import lombok.Data;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 @Data
 public class ProductsDTO{
@@ -24,4 +25,14 @@ public class ProductsDTO{
     private Integer totalSales;
 
     private Boolean hot;
+
+    private int status;
+
+    private String purpose;
+
+    private String anchor;
+
+    private Long stock;
+
+    private LocalDateTime createdAt;
 }

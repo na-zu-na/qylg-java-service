@@ -1,9 +1,6 @@
 package com.cc.qylgjavaservice.entity;
 
-import com.baomidou.mybatisplus.annotation.IdType;
-import com.baomidou.mybatisplus.annotation.TableField;
-import com.baomidou.mybatisplus.annotation.TableId;
-import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.*;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
 import com.cc.qylgjavaservice.mapper.ProductsMapper;
@@ -70,6 +67,6 @@ public class Products {
 
     private Integer makeTime;
 
-    @TableField("created_at")
+    @TableField(value = "created_at",fill = FieldFill.DEFAULT)
     private LocalDateTime createdAt;
 }

@@ -68,4 +68,33 @@ public class ProductsController {
     public void initEsDoc(){
         productSyncService.syncAll();
     }
+
+    @GetMapping("/admin/products/mass")
+    public Result<ProductsAdminDTO> getAdminProMass(@RequestParam(value = "page",defaultValue = "1") int page ,
+                                                    @RequestParam(value = "pageSize",defaultValue = "10") int pageSize,
+                                                    @RequestParam(required = false) Integer status,
+                                                    @RequestParam(required = false) String keyword){
+        return productsService.getAdminProMass(page,pageSize,status,keyword);
+    }
+
+    @PutMapping("/admin/products/mass/{id}")
+    public Result<Void> updateProductStatus(@PathVariable Long id,
+                                            @RequestParam Integer status) {
+        return productsService.updateProductStatus(id, status);
+    }
+
+    @PostMapping("/admin/products/mass")
+    public Result<Long> addMassProduct(@RequestBody Products dto) {
+        return productsService.addMassProduct(dto);
+    }
+
+    @GetMapping("/admin/products/mass/{productId}")
+    public Result<Products> getMassProductDetail(@PathVariable Long productId) {
+        return productsService.getMassProductDetail(productId);
+    }
+
+    @PutMapping("/admin/products/mass")
+    public Result<Long> editMassProduct(@RequestBody Products dto) {
+        return productsService.editMassProduct(dto);
+    }
 }
