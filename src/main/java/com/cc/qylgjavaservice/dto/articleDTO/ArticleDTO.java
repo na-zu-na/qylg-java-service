@@ -2,6 +2,7 @@ package com.cc.qylgjavaservice.dto.articleDTO;
 
 import lombok.Data;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 
@@ -19,6 +20,8 @@ public class ArticleDTO {
 
     private List<String> images;
 
+    private int status;
+
     private String authorName; // 联查得到
 
     private Long publishedAt;
@@ -29,6 +32,14 @@ public class ArticleDTO {
 
     public boolean isLiked;
 
-    public int categoryId;
+    public Integer categoryId;
+
+    public Integer hot;
+
+    public Integer recommended;
+
+    public LocalDateTime createdAt;
+
+    public LocalDateTime updatedAt;
 
 }

@@ -47,4 +47,6 @@ public class Users {
 
     @TableField(value = "updated_at", fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updatedAt;
+
+    private String userName;
 }

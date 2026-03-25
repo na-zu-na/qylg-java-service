@@ -16,7 +16,7 @@ import java.io.InputStream;
 import java.util.UUID;
 
 @Service
-public class UploadServiceImpl extends ServiceImpl<UpLoadMapper, FileDTO> implements UploadService {
+public class UploadServiceImpl implements UploadService {
     @Resource
     private S3Client s3Client;
 

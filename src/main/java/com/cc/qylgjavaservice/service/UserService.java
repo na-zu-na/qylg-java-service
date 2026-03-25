@@ -1,5 +1,6 @@
 package com.cc.qylgjavaservice.service;
 
+import com.cc.qylgjavaservice.dto.AdminLoginDTO;
 import com.cc.qylgjavaservice.dto.Result;
 import com.cc.qylgjavaservice.dto.userDTO.AdminUserDetailDTO;
 import com.cc.qylgjavaservice.dto.userDTO.AdminUserListDTO;
@@ -20,4 +21,6 @@ public interface UserService {
     Result<AdminUserListDTO> getUsersList(String keyword, String status);
 
     public Result<AdminUserDetailDTO> getUsersDetail(Long userId);
+
+    Result<UserDTO> adminLogin(AdminLoginDTO adminLoginDTO);
 }

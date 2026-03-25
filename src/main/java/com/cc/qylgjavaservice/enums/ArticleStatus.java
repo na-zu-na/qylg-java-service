@@ -8,8 +8,8 @@ import lombok.Getter;
 @AllArgsConstructor
 @Getter
 public enum ArticleStatus implements IEnum<Integer> {
-    PUBLISH(1),
-    OFF(2);
+    PUBLISH(0),
+    OFF(1);
 
     @EnumValue
     private final int article_status;

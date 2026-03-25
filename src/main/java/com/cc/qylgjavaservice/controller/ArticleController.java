@@ -2,10 +2,7 @@ package com.cc.qylgjavaservice.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.cc.qylgjavaservice.dto.*;
-import com.cc.qylgjavaservice.dto.articleDTO.ArticleDTO;
-import com.cc.qylgjavaservice.dto.articleDTO.ArticleDetailDTO;
-import com.cc.qylgjavaservice.dto.articleDTO.ArticleLikeDTO;
-import com.cc.qylgjavaservice.dto.articleDTO.LikeActionDTO;
+import com.cc.qylgjavaservice.dto.articleDTO.*;
 import com.cc.qylgjavaservice.entity.Articles;
 import com.cc.qylgjavaservice.service.ArticleService;
 import com.cc.qylgjavaservice.service.ArticleSyncService;
@@ -81,5 +78,19 @@ public class ArticleController {
     @GetMapping("/article/search")
     public List<ArticleDTO> searchArticle(@RequestParam(value = "keyword") String keyword){
         return articleService.searchArticle(keyword);
+    }
+
+    @GetMapping("/admin/articles")
+    public Result<ArticleAdminDTO> getAdminArticles(@RequestParam(value = "page",defaultValue = "1") int page ,
+                                                    @RequestParam(value = "pageSize",defaultValue = "10") int pageSize,
+                                                    @RequestParam(required = false) Integer status,
+                                                    @RequestParam(required = false) Integer category_id){
+        return articleService.getAdminArticles(page,pageSize,status,category_id);
+    }
+
+    @PutMapping("/admin/articles/{articleId}/status")
+    public Result<Void> updateArticleStatus(@PathVariable Long articleId,
+                                            @RequestParam Integer status) {
+        return articleService.updateArticleStatus(articleId, status);
     }
 }

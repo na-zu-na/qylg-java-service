@@ -28,4 +28,6 @@ public interface ArticleMapper extends BaseMapper<Articles> {
     List<ArticleDTO> searchArticle(@Param("keyword") String keyword);
 
     List<ArticleDTO> searchArticleList(@Param("list") ArrayList<Long> list);
+
+    Page<ArticleDTO> selectAdminArticlePage(Page<ArticleDTO> articleDTOPage, @Param("status") Integer status, @Param("category_id") Integer category_id);
 }

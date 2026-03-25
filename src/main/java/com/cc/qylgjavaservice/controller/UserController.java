@@ -1,5 +1,6 @@
 package com.cc.qylgjavaservice.controller;
 
+import com.cc.qylgjavaservice.dto.AdminLoginDTO;
 import com.cc.qylgjavaservice.dto.Result;
 import com.cc.qylgjavaservice.dto.userDTO.AdminUserDetailDTO;
 import com.cc.qylgjavaservice.dto.userDTO.AdminUserListDTO;
@@ -46,5 +47,10 @@ public class UserController {
     @GetMapping("/admin/users/{userId}")
     public Result<AdminUserDetailDTO> getUsersDetail(@PathVariable Long userId){
         return userService.getUsersDetail(userId);
+    }
+
+    @PostMapping("/admin/login")
+    public Result<UserDTO> adminLogin(@RequestBody AdminLoginDTO adminLoginDTO){
+        return userService.adminLogin(adminLoginDTO);
     }
 }

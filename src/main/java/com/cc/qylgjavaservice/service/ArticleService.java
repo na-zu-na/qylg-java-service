@@ -1,6 +1,7 @@
 package com.cc.qylgjavaservice.service;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.cc.qylgjavaservice.dto.articleDTO.ArticleAdminDTO;
 import com.cc.qylgjavaservice.dto.articleDTO.ArticleDTO;
 import com.cc.qylgjavaservice.dto.articleDTO.ArticleDetailDTO;
 import com.cc.qylgjavaservice.dto.Result;
@@ -24,4 +25,8 @@ public interface ArticleService {
     Result<Long> postArticle(Articles articles);
 
     List<ArticleDTO> searchArticle(String keyword);
+
+    Result<ArticleAdminDTO> getAdminArticles(int page, int pageSize, Integer status, Integer category_id);
+
+    Result<Void> updateArticleStatus(Long articleId, Integer status);
 }

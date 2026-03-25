@@ -3,20 +3,16 @@ package com.cc.qylgjavaservice.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.cc.qylgjavaservice.dto.ConversationSessionsDTO;
-import com.cc.qylgjavaservice.dto.Result;
+import com.cc.qylgjavaservice.dto.*;
 import com.cc.qylgjavaservice.dto.userDTO.AdminUserDetailDTO;
 import com.cc.qylgjavaservice.dto.userDTO.AdminUserListDTO;
 import com.cc.qylgjavaservice.dto.userDTO.UserDTO;
-import com.cc.qylgjavaservice.dto.WechatLoginRequest;
-import com.cc.qylgjavaservice.dto.WechatSessionDTO;
 import com.cc.qylgjavaservice.entity.*;
 import com.cc.qylgjavaservice.enums.UserRole;
 import com.cc.qylgjavaservice.enums.UserStatus;
 import com.cc.qylgjavaservice.mapper.*;
 import com.cc.qylgjavaservice.service.UserService;
 import com.cc.qylgjavaservice.utils.JwtUtil;
-import org.apache.catalina.User;
 import org.redisson.api.RBucket;
 import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,8 +27,7 @@ import java.net.URI;
 import java.time.Duration;
 import java.util.*;
 
-import static com.cc.qylgjavaservice.utils.RedisConstants.BLACKLIST_PREFIX;
-import static com.cc.qylgjavaservice.utils.RedisConstants.USER_TOKEN_KEY;
+import static com.cc.qylgjavaservice.utils.RedisConstants.*;
 
 @Service
 public class UserServiceImpl extends ServiceImpl<UserMapper,Users> implements UserService {
@@ -147,6 +142,9 @@ public class UserServiceImpl extends ServiceImpl<UserMapper,Users> implements Us
         }
 
         String token=jwtUtil.generateToken(id,openId);
+        //插入redis
+        RBucket<Object> bucket = redissonClient.getBucket(USER_TOKEN_KEY + token);
+        bucket.set(id.toString(),Duration.ofHours(1));
         UserDTO userDTO=new UserDTO(token,id,nickName,avatar_url);
 
         return Result.success(userDTO);
@@ -184,7 +182,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper,Users> implements Us
 
     @Override
     public Result<Object> setUserBlackList(Long userId) {
-        RBucket<String> tokenBucket = redissonClient.getBucket(USER_TOKEN_KEY+userId);
+        RBucket<String> tokenBucket = redissonClient.getBucket(USER_BLACK_KEY +userId);
         if (!tokenBucket.isExists()){
             return Result.fail(500,"用户未登录");
         }
@@ -302,4 +300,27 @@ public class UserServiceImpl extends ServiceImpl<UserMapper,Users> implements Us
 
             return Result.success(dto);
         }
+
+    @Override
+    public Result<UserDTO> adminLogin(AdminLoginDTO adminLoginDTO) {
+        Users users = userMapper.selectOne(new LambdaQueryWrapper<Users>()
+                .eq(Users::getUserName, adminLoginDTO.getUsername())
+                .eq(Users::getPassword,adminLoginDTO.getPassword()));
+
+        if (users!=null){
+            if (users.getRoleCode()!=UserRole.ADMIN){
+                return Result.fail(401,"权限不足");
+            }
+
+            String token=jwtUtil.generateToken(users.getId(), users.getOpenId());
+            //加入redis
+            RBucket<Object> bucket = redissonClient.getBucket(ADMIN_TOKEN_KEY+token);
+            bucket.set(users.getId().toString(),Duration.ofHours(1));
+            UserDTO userDTO=new UserDTO(token,users.getId(),users.getNickName(),users.getAvatarUrl());
+
+            return Result.success(userDTO);
+        }
+
+        return Result.fail(401, "用户名或密码错误");
+    }
 }

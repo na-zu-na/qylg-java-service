@@ -40,6 +40,10 @@ public class Articles {
     @TableField("published_at")
     private Long publishedAt;
 
+    private Integer hot;
+
+    private Integer recommended;
+
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
 

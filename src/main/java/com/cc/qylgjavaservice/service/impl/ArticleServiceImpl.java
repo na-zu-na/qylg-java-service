@@ -12,6 +12,7 @@ import com.cc.qylgjavaservice.dto.articleDTO.*;
 import com.cc.qylgjavaservice.dto.Result;
 import com.cc.qylgjavaservice.entity.ArticleLike;
 import com.cc.qylgjavaservice.entity.Articles;
+import com.cc.qylgjavaservice.enums.ArticleStatus;
 import com.cc.qylgjavaservice.mapper.ArticleLikeMapper;
 import com.cc.qylgjavaservice.mapper.ArticleMapper;
 import com.cc.qylgjavaservice.service.ArticleService;
@@ -19,9 +20,7 @@ import com.cc.qylgjavaservice.service.ArticleSyncService;
 import com.cc.qylgjavaservice.utils.UserContext;
 import org.redisson.api.RBucket;
 import org.redisson.api.RedissonClient;
-import org.redisson.client.codec.StringCodec;
 import org.redisson.codec.JsonJacksonCodec;
-import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -236,6 +235,59 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper,Articles> impl
 
         return resDto;
 
+    }
+
+    @Override
+    public Result<ArticleAdminDTO> getAdminArticles(int page, int pageSize, Integer status, Integer category_id) {
+        //查文章列表
+        Page<ArticleDTO> articleDTOPage=new Page<>(page,pageSize);
+        Page<ArticleDTO> articles = articleMapper.selectAdminArticlePage(articleDTOPage,status,category_id);
+
+        //组装page
+        ArticleAdminDTO articleAdminDTO =new ArticleAdminDTO();
+        articleAdminDTO.setSize(articles.getSize());
+        articleAdminDTO.setTotal(articles.getTotal());
+        articleAdminDTO.setCurrent(articles.getCurrent());
+
+        List<ArticleDTO> records = articles.getRecords();
+
+        articleAdminDTO.setDisable(articleMapper.selectCount(new LambdaQueryWrapper<Articles>().eq(Articles::getStatus, 1)));
+        articleAdminDTO.setNormal(articleMapper.selectCount(new LambdaQueryWrapper<Articles>().eq(Articles::getStatus, 0)));
+        articleAdminDTO.setArticleDTO(records);
+
+        return Result.success(articleAdminDTO);
+
+    }
+
+    @Override
+    public Result<Void> updateArticleStatus(Long articleId, Integer status) {
+
+        // 1. 参数校验
+        if (articleId == null) {
+            return Result.fail(400, "文章ID不能为空");
+        }
+        if (status == null) {
+            return Result.fail(400, "状态不能为空");
+        }
+        if (status != 0 && status != 1) {
+            return Result.fail(400, "状态值非法（0正常，1下架）");
+        }
+
+        // 2. 判断是否存在
+        Articles article = articleMapper.selectById(articleId);
+        if (article == null) {
+            return Result.fail(404, "文章不存在");
+        }
+
+        // 3. 更新
+        ArticleStatus articleStatus=ArticleStatus.OFF;
+        if (status==0){
+            articleStatus=ArticleStatus.PUBLISH;
+        }
+        article.setStatus(articleStatus);
+        int rows = articleMapper.updateById(article);
+
+        return rows > 0 ? Result.success() : Result.fail("文章状态更新失败");
     }
 
 

@@ -42,12 +42,13 @@
             a.title,
             a.content,
             a.images,
+            a.status,
             a.author_id AS authorId,
             u.nick_name AS authorName,
             a.published_at AS publishedAt
         FROM articles a
                  LEFT JOIN users u ON a.author_id = u.id
-        WHERE a.status = 1
+        WHERE a.status = 0
         ORDER BY a.published_at DESC
 
     </select>
@@ -68,7 +69,7 @@
                  LEFT JOIN article_likes al ON a.id = al.article_id
                  LEFT JOIN article_comments ac ON a.id = ac.article_id
                  LEFT JOIN users u ON a.author_id = u.id
-        WHERE a.status = 1
+        WHERE a.status = 0
           AND a.published_at >= (EXTRACT(EPOCH FROM NOW()) * 1000)::BIGINT - 2592000000
         GROUP BY a.id, u.nick_name, a.title, a.content, a.images, a.author_id, a.published_at,u.avatar_url
         ORDER BY likeCount DESC
@@ -92,7 +93,7 @@
                  LEFT JOIN article_likes al ON a.id = al.article_id
                  LEFT JOIN article_comments ac ON a.id = ac.article_id
                  LEFT JOIN users u ON a.author_id = u.id
-        WHERE a.status = 1
+        WHERE a.status = 0
           AND a.category_id=#{type}
         GROUP BY a.id, u.nick_name, a.title, a.content, a.images, a.author_id, a.published_at,a.created_at,u.avatar_url
         ORDER BY a.created_at DESC
@@ -109,13 +110,15 @@
             u.nick_name AS authorName,
             a.published_at AS publishedAt,
             a.category_id AS categoryId,
+            a.hot,
+            a.recommended,
             COUNT(DISTINCT al.id) AS likeCount,
             COUNT(DISTINCT ac.id) AS commentCount
         FROM articles a
                  LEFT JOIN article_likes al ON a.id = al.article_id
                  LEFT JOIN article_comments ac ON a.id = ac.article_id
                  LEFT JOIN users u ON a.author_id = u.id
-        WHERE a.status = 1
+        WHERE a.status = 0
           AND a.id=#{id}
         GROUP BY a.id, u.nick_name, a.title, a.content, a.images, a.author_id, a.published_at,u.avatar_url
     </select>
@@ -153,7 +156,7 @@
                  LEFT JOIN article_likes al ON a.id = al.article_id
                  LEFT JOIN article_comments ac ON a.id = ac.article_id
                  LEFT JOIN users u ON a.author_id = u.id
-        WHERE a.status = 1
+        WHERE a.status = 0
             AND a.author_id=#{id}
         GROUP BY a.id, u.nick_name, a.title, a.content, a.images, a.author_id, a.published_at, u.avatar_url
 
@@ -194,7 +197,7 @@
                  LEFT JOIN article_likes al ON a.id = al.article_id
                  LEFT JOIN article_comments ac ON a.id = ac.article_id
                  LEFT JOIN users u ON a.author_id = u.id
-        WHERE a.status = 1
+        WHERE a.status = 0
           AND a.title ilike concat('%',#{keyword},'%')
 
         GROUP BY a.id, u.nick_name, a.title, a.content, a.images, a.author_id, a.published_at,a.created_at,u.avatar_url
@@ -218,13 +221,59 @@
                  LEFT JOIN article_likes al ON a.id = al.article_id
                  LEFT JOIN article_comments ac ON a.id = ac.article_id
                  LEFT JOIN users u ON a.author_id = u.id
-        WHERE a.status = 1
+        WHERE a.status = 0
           AND a.id in
         <foreach item="id" collection="list" open="(" separator="," close=")">
             #{id, jdbcType=BIGINT}
         </foreach>
         GROUP BY a.id, u.nick_name, a.title, a.content, a.images, a.author_id, a.published_at,a.created_at,u.avatar_url
         ORDER BY a.created_at DESC
+    </select>
+
+    <select id="selectAdminArticlePage" resultMap="ArticleDTOMap">
+        SELECT
+        a.id,
+        a.title,
+        a.content,
+        a.images,
+        a.status,
+        a.author_id AS authorId,
+        u.nick_name AS authorName,
+        a.published_at AS publishedAt,
+        a.updated_at,
+        a.category_id as categoryId,
+        a.hot,
+        a.recommended,
+        COUNT(DISTINCT al.id) AS likeCount,
+        COUNT(DISTINCT ac.id) AS commentCount
+        FROM articles a
+        LEFT JOIN article_likes al ON a.id = al.article_id
+        LEFT JOIN article_comments ac ON a.id = ac.article_id
+        LEFT JOIN users u ON a.author_id = u.id
+
+        <where>
+            <if test="status != null">
+                a.status = #{status}
+            </if>
+
+            <if test="category_id != null">
+                AND a.category_id = #{category_id}
+            </if>
+        </where>
+
+        GROUP BY
+        a.id,
+        a.title,
+        a.content,
+        a.images,
+        a.status,
+        a.author_id,
+        u.nick_name,
+        a.published_at,
+        a.updated_at,
+        a.category_id
+
+        ORDER BY a.published_at DESC
     </select>
 
 </mapper>
