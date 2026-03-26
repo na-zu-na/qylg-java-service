@@ -10,8 +10,8 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.cc.qylgjavaservice.dto.Result;
 import com.cc.qylgjavaservice.dto.productsDTO.*;
-import com.cc.qylgjavaservice.entity.Products;
-import com.cc.qylgjavaservice.mapper.ProductsMapper;
+import com.cc.qylgjavaservice.entity.*;
+import com.cc.qylgjavaservice.mapper.*;
 import com.cc.qylgjavaservice.service.ProductsService;
 import org.redisson.api.RBucket;
 import org.redisson.api.RedissonClient;
@@ -19,11 +19,13 @@ import org.redisson.codec.JsonJacksonCodec;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import tools.jackson.databind.ObjectMapper;
 
 import java.math.BigDecimal;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -45,6 +47,18 @@ public class ProductsServiceImpl extends ServiceImpl<ProductsMapper,Products> im
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private MaterialMapper materialMapper;
+
+    @Autowired
+    private StylesMapper stylesMapper;
+
+    @Autowired
+    private CProStylesMapper cProStylesMapper;
+
+    @Autowired
+    private CProMaterialsMapper cProMaterialsMapper;
 
     @Override
     public Result<List<ProductsDTO>> getShopRecommend() {
@@ -600,6 +614,203 @@ public class ProductsServiceImpl extends ServiceImpl<ProductsMapper,Products> im
         return Result.success(dto.getId());
     }
 
+    @Override
+    public Result<ProductsCustomAdminDTO> getAdminProCustom(int page, int pageSize, Integer status, String keyword) {
+        //查文章列表
+        Page<ProductsCustomDTO> productsDTOPage =new Page<>(page,pageSize);
+        Page<ProductsCustomDTO> products = productsMapper.selectAdminCustomProductsPage(productsDTOPage,status,keyword);
+
+        //组装page
+        ProductsCustomAdminDTO productsAdminDTO =new ProductsCustomAdminDTO();
+        productsAdminDTO.setSize(products.getSize());
+        productsAdminDTO.setTotal(products.getTotal());
+        productsAdminDTO.setCurrent(products.getCurrent());
+
+        //统计参数
+        ProductStatsDTO productStatsDTO=productsMapper.selectCustomProductStats();
+        productsAdminDTO.setProductStatsDTO(productStatsDTO);
+
+        List<ProductsCustomDTO> records = products.getRecords();
+        records.forEach(i->{
+            if (i.getTotalSales()>1000)
+                i.setHot(true);
+        });
+
+        productsAdminDTO.setProductsCustomDTOS(records);
+
+        return Result.success(productsAdminDTO);
+    }
+
+    @Override
+    public Result<ProductsSettings> getProductsSettings() {
+        List<Styles> styles = stylesMapper.selectList(new LambdaQueryWrapper<Styles>().eq(Styles::getStatus,0));
+        List<Materials> materials = materialMapper.selectList(new LambdaQueryWrapper<Materials>().eq(Materials::getStatus, 0));
+
+        ProductsSettings productsSettings=new ProductsSettings();
+        productsSettings.setMaterialList(materials);
+        productsSettings.setStyleList(styles);
+
+        return Result.success(productsSettings);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Result<Long> addCustomProduct(AddCustomProductsDTO dto) {
+        if (dto == null) {
+            return Result.fail(400, "请求参数不能为空");
+        }
+
+        validateCustomParam(dto);
+
+        Products product = new Products();
+        product.setTitle(dto.getTitle());
+        product.setCover(dto.getCover());
+        product.setType(dto.getType());
+        product.setPurpose(dto.getPurpose());
+        product.setMinPrice(dto.getMinPrice());
+        product.setMaxPrice(dto.getMaxPrice());
+        product.setStatus(1);
+        product.setStock(dto.getStock());
+        product.setDescription(dto.getDescription());
+        product.setSizeRange(dto.getSizeType());
+        product.setMakeTime(dto.getMakeTime());
+        product.setImages(dto.getImages());
+
+        if (dto.getAnchor() != null) {
+            product.setAnchor(objectMapper.writeValueAsString(dto.getAnchor()));
+        }
+
+        int rows = productsMapper.insert(product);
+        if (rows < 1) {
+            return Result.fail("新增商品失败");
+        }
+
+        List<Long> linkedStyles = dto.getLinkedStyles();
+        if (linkedStyles != null && !linkedStyles.isEmpty()) {
+            for (Long styleId : linkedStyles) {
+                CustomProStyles customProStyles = new CustomProStyles();
+                customProStyles.setProductId(product.getId());
+                customProStyles.setStyleId(styleId);
+
+                int count = cProStylesMapper.insert(customProStyles);
+                if (count < 1) {
+                    throw new RuntimeException("商品风格关联保存失败");
+                }
+            }
+        }
+
+        List<Long> linkedMaterials = dto.getLinkedMaterials();
+        if (linkedMaterials != null && !linkedMaterials.isEmpty()) {
+            for (Long materialId : linkedMaterials) {
+                CustomProMaterials customProMaterials = new CustomProMaterials();
+                customProMaterials.setProductsId(product.getId());
+                customProMaterials.setMaterialId(materialId);
+
+                int count = cProMaterialsMapper.insert(customProMaterials);
+                if (count < 1) {
+                    throw new RuntimeException("商品材质关联保存失败");
+                }
+            }
+        }
+
+        return Result.success(product.getId());
+    }
+
+    @Override
+    public Result<AddCustomProductsDTO> getCustomProductDetail(Long templateId) {
+        // 1. 参数校验
+        if (templateId == null) {
+            return Result.fail(400, "templateId不能为空");
+        }
+
+        // 2. 查询商品基础信息
+        Products product = productsMapper.selectById(templateId);
+        if (product == null) {
+            return Result.fail(404, "定制商品不存在");
+        }
+
+         if (!"custom".equals(product.getType())) {
+             return Result.fail(400, "当前商品不是定制商品");
+         }
+
+        // 3. 组装返回对象
+        AddCustomProductsDTO vo = new AddCustomProductsDTO();
+        BeanUtils.copyProperties(product, vo);
+
+        // 4. 处理 sizeRange -> sizeType
+        vo.setSizeType(product.getSizeRange());
+
+        // 5. 处理 images
+        if (product.getImages() != null) {
+            vo.setImages((List<String>) product.getImages());
+        } else {
+            vo.setImages(Collections.emptyList());
+        }
+
+        // 6. 查询绑定风格ID
+        List<Long> linkedStyles = cProStylesMapper.selectStyleIdsByProductId(templateId);
+        vo.setLinkedStyles(linkedStyles == null ? new ArrayList<>() : linkedStyles);
+
+        // 7. 查询绑定材质ID
+        List<Long> linkedMaterials = cProMaterialsMapper.selectMaterialIdsByProductId(templateId);
+        vo.setLinkedMaterials(linkedMaterials == null ? new ArrayList<>() : linkedMaterials);
+
+        return Result.success(vo);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Result<Long> editCustomProduct(AddCustomProductsDTO dto) {
+        if (dto == null) {
+            return Result.fail(400, "请求参数不能为空");
+        }
+        if (dto.getId() == null) {
+            return Result.fail(400, "商品ID不能为空");
+        }
+
+        validateCustomParam(dto);
+
+        Products products = productsMapper.selectById(dto.getId());
+        if (products == null) {
+            return Result.fail(404, "没有找到商品");
+        }
+
+        // 1. 更新主表
+        BeanUtil.copyProperties(dto, products);
+
+        // 如果字段不一致，手动映射
+        products.setSizeRange(dto.getSizeType());
+
+        int i = productsMapper.updateById(products);
+        if (i < 1) {
+            return Result.fail("修改商品失败");
+        }
+
+        // 2. 更新风格关联：先删后插
+        cProStylesMapper.delete(new LambdaQueryWrapper<CustomProStyles>().eq(CustomProStyles::getProductId,dto.getId()));
+        if (dto.getLinkedStyles() != null && !dto.getLinkedStyles().isEmpty()) {
+            for (Long styleId : dto.getLinkedStyles()) {
+                CustomProStyles customProStyles = new CustomProStyles();
+                customProStyles.setProductId(dto.getId());
+                customProStyles.setStyleId(styleId);
+                cProStylesMapper.insert(customProStyles);
+            }
+        }
+
+        // 3. 更新材质关联：先删后插
+        cProMaterialsMapper.delete(new LambdaQueryWrapper<CustomProMaterials>().eq(CustomProMaterials::getProductsId,dto.getId()));
+        if (dto.getLinkedMaterials() != null && !dto.getLinkedMaterials().isEmpty()) {
+            for (Long materialId : dto.getLinkedMaterials()) {
+                CustomProMaterials customProMaterials = new CustomProMaterials();
+                customProMaterials.setProductsId(dto.getId());
+                customProMaterials.setMaterialId(materialId);
+                cProMaterialsMapper.insert(customProMaterials);
+            }
+        }
+
+        return Result.success(dto.getId());
+    }
+
     private static void validateParam(Products dto) {
         if (dto.getTitle() == null || dto.getTitle().trim().isEmpty()) {
             Result.fail(400, "商品名称不能为空");
@@ -623,6 +834,36 @@ public class ProductsServiceImpl extends ServiceImpl<ProductsMapper,Products> im
         }
         if (dto.getStatus() != 0 && dto.getStatus() != 1) {
             Result.fail(400, "商品状态非法，1表示启用，0表示下架");
+            return;
+        }
+        if (dto.getStock() == null) {
+            Result.fail(400, "库存不能为空");
+        }
+    }
+
+    private static void validateCustomParam(AddCustomProductsDTO dto) {
+        if (dto.getTitle() == null || dto.getTitle().trim().isEmpty()) {
+            Result.fail(400, "商品名称不能为空");
+            return;
+        }
+        if (dto.getType() == null || dto.getType().trim().isEmpty()) {
+            Result.fail(400, "商品类型不能为空");
+            return;
+        }
+        if (!"mass".equals(dto.getType())) {
+            Result.fail(400, "商品类型必须为 mass");
+            return;
+        }
+        if (dto.getMinPrice() == null) {
+            Result.fail(400, "商品价格不能为空");
+            return;
+        }
+        if (dto.getMaxPrice() == null) {
+            Result.fail(400, "商品状态不能为空");
+            return;
+        }
+        if (dto.getMakeTime() != 0 && dto.getMakeTime() != 1) {
+            Result.fail(400, "商品制作时间非法");
             return;
         }
         if (dto.getStock() == null) {

@@ -6,7 +6,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Data
-public class ProductsDTO{
+public class ProductsCustomDTO {
     private Long id;
 
     private String type;
@@ -21,6 +21,8 @@ public class ProductsDTO{
 
     private BigDecimal maxPrice;
 
+    private Integer makeTime;
+
     private Integer totalSales;
 
     private Boolean hot;
@@ -32,4 +34,6 @@ public class ProductsDTO{
     private String anchor;
 
     private Long stock;
+
+    private LocalDateTime createdAt;
 }

@@ -97,4 +97,33 @@ public class ProductsController {
     public Result<Long> editMassProduct(@RequestBody Products dto) {
         return productsService.editMassProduct(dto);
     }
+
+
+    @GetMapping("/admin/products/custom")
+    public Result<ProductsCustomAdminDTO> getAdminProCustom(@RequestParam(value = "page",defaultValue = "1") int page ,
+                                                    @RequestParam(value = "pageSize",defaultValue = "10") int pageSize,
+                                                    @RequestParam(required = false) Integer status,
+                                                    @RequestParam(required = false) String keyword){
+        return productsService.getAdminProCustom(page,pageSize,status,keyword);
+    }
+
+    @GetMapping("/admin/products/settings")
+    public Result<ProductsSettings> getProductsSettings(){
+        return productsService.getProductsSettings();
+    }
+
+    @PostMapping("/admin/products/custom")
+    public Result<Long> addMassProduct(@RequestBody AddCustomProductsDTO dto) {
+        return productsService.addCustomProduct(dto);
+    }
+
+    @GetMapping("/admin/custom/{templateId}")
+    public Result<AddCustomProductsDTO> getCustomProductDetail(@PathVariable Long templateId) {
+        return productsService.getCustomProductDetail(templateId);
+    }
+
+    @PutMapping("/admin/products/custom")
+    public Result<Long> editCustomProduct(@RequestBody AddCustomProductsDTO dto) {
+        return productsService.editCustomProduct(dto);
+    }
 }

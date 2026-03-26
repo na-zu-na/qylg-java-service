@@ -32,4 +32,14 @@ public interface ProductsService {
     Result<Products> getMassProductDetail(Long productId);
 
     Result<Long> editMassProduct(Products dto);
+
+    Result<ProductsCustomAdminDTO> getAdminProCustom(int page, int pageSize, Integer status, String keyword);
+
+    Result<ProductsSettings> getProductsSettings();
+
+    Result<Long> addCustomProduct(AddCustomProductsDTO dto);
+
+    Result<AddCustomProductsDTO> getCustomProductDetail(Long templateId);
+
+    Result<Long> editCustomProduct(AddCustomProductsDTO dto);
 }
