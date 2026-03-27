@@ -10,6 +10,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.cc.qylgjavaservice.dto.Result;
 import com.cc.qylgjavaservice.dto.productsDTO.*;
+import com.cc.qylgjavaservice.dto.productsDTO.productsSettings.ProductsSettings;
 import com.cc.qylgjavaservice.entity.*;
 import com.cc.qylgjavaservice.mapper.*;
 import com.cc.qylgjavaservice.service.ProductsService;

@@ -1,4 +1,4 @@
-package com.cc.qylgjavaservice.dto.productsDTO;
+package com.cc.qylgjavaservice.dto.productsDTO.productsSettings;
 
 import com.cc.qylgjavaservice.entity.Materials;
 import com.cc.qylgjavaservice.entity.Styles;

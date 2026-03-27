@@ -2,6 +2,7 @@ package com.cc.qylgjavaservice.service;
 
 import com.cc.qylgjavaservice.dto.Result;
 import com.cc.qylgjavaservice.dto.productsDTO.*;
+import com.cc.qylgjavaservice.dto.productsDTO.productsSettings.ProductsSettings;
 import com.cc.qylgjavaservice.entity.Products;
 
 import java.util.List;

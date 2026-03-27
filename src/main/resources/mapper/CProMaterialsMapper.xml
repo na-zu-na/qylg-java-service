@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.cc.qylgjavaservice.mapper.CProMaterialsMapper">
+
+    <select id="countByMaterialIds" resultType="com.cc.qylgjavaservice.dto.productsDTO.productsSettings.IdCountVO">
+        SELECT
+        material_id AS id,
+        COUNT(1) AS count
+        FROM custom_pro_materials
+        WHERE material_id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+        GROUP BY material_id
+    </select>
+
+</mapper>
