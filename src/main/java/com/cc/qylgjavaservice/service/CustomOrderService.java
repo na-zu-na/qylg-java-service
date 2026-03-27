@@ -14,4 +14,6 @@ public interface CustomOrderService {
     Result<Page<CustomOrderListDTO>> customOrderList(CustomOrderListParamDTO dto);
 
     public Result<Long> receiveCustomOrder(Long id);
+
+    Result<Void> customDesignConfirm(Long id);
 }

@@ -42,4 +42,10 @@ public class CustomOrder {
     private int status; // 'making', 'shipping', 'finished'
 
     private Long createdAt;
+
+    private BigDecimal quote;
+
+    private String proposalImage;
+
+    private int isConfirmed;
 }

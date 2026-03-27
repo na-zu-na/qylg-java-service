@@ -148,6 +148,22 @@ public class CustomOrderServiceImpl extends ServiceImpl<CustomOrderMapper,Custom
         return Result.fail(500,"更新错误");
     }
 
+    @Override
+    public Result<Void> customDesignConfirm(Long id) {
+        CustomOrder customOrder = customOrderMapper.selectById(id);
+        if (customOrder==null){
+            return Result.fail(404,"没找到");
+        }
+
+        customOrder.setIsConfirmed(1);
+
+        int i = customOrderMapper.updateById(customOrder);
+        if (i<1){
+            return Result.fail(500,"更新失败");
+        }
+
+        return Result.success();
+    }
 
 
     /**

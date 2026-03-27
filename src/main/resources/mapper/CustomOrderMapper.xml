@@ -24,7 +24,10 @@
             co.colors as colorOptions,
             co.patterns as patternOptions,
             co.images,
-            co.created_at
+            co.created_at,
+            co.is_confirmed,
+            co.quote,
+            co.proposal_image
         from custom_orders as co
         left join products as p on co.product_id = p.id
         where co.user_id=#{currentUserId}

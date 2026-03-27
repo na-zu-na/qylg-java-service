@@ -34,6 +34,12 @@ public class CustomOrderListDTO {
 
     private String statusText;
 
+    private int isConfirmed;
+
+    private BigDecimal quote;
+
+    private String proposalImage;
+
     @TableField(typeHandler = JacksonTypeHandler.class,jdbcType = JdbcType.OTHER)
     private List<String> colorOptions;
 

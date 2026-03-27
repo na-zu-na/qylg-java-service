@@ -77,6 +77,8 @@
             o.receiver_name as name,
             o.receiver_phone as phone,
             o.receiver_address as location,
+            o.shipped,
+            o.closed,
             json_agg(
             json_build_object(
                 'id',i.id,

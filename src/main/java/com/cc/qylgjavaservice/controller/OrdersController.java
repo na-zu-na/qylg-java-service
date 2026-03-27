@@ -66,4 +66,9 @@ public class OrdersController {
     public Result<Long> receiveCustomOrder(@RequestParam Long id){
         return customOrderService.receiveCustomOrder(id);
     }
+
+    @GetMapping("/custom/confirm")
+    public Result<Void> customDesignConfirm(@RequestParam  Long id){
+        return customOrderService.customDesignConfirm(id);
+    }
 }

@@ -34,6 +34,10 @@ public class Orders {
 
     private LocalDateTime payTime;
 
+    private LocalDateTime closed;
+
+    private LocalDateTime shipped;
+
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
 }

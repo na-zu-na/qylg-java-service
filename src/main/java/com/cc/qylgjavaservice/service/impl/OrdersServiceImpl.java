@@ -145,6 +145,7 @@ public class OrdersServiceImpl extends ServiceImpl<OrdersMapper, Orders> impleme
                 .eq(Orders::getUserId, userId) // 防止越权
                 .eq(Orders::getStatus, 1)      // 确保只有“待收货”状态才能转为“已完成”
                 .set(Orders::getStatus, 2)
+                .set(Orders::getClosed,LocalDateTime.now())
                 .update();
         if(update){
             return Result.success(id);
