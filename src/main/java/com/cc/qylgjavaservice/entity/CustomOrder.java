@@ -3,6 +3,7 @@ package com.cc.qylgjavaservice.entity;
 import com.baomidou.mybatisplus.annotation.*;
 import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
 import com.cc.qylgjavaservice.utils.JsonbTypeHandler;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Data;
 import org.apache.ibatis.type.JdbcType;
 
@@ -48,4 +49,12 @@ public class CustomOrder {
     private String proposalImage;
 
     private int isConfirmed;
+
+    private Long workerId;
+
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    private LocalDateTime quoteTime;
+
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    private LocalDateTime proposalTime;
 }

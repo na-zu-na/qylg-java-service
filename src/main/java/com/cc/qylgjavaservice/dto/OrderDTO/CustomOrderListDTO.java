@@ -2,10 +2,12 @@ package com.cc.qylgjavaservice.dto.OrderDTO;
 
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Data;
 import org.apache.ibatis.type.JdbcType;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Data
@@ -39,6 +41,20 @@ public class CustomOrderListDTO {
     private BigDecimal quote;
 
     private String proposalImage;
+
+    private Long workerId;
+
+    private String workerName;
+
+    private Long userId;
+
+    private String userName;
+
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    private LocalDateTime proposalTime;
+
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    private LocalDateTime quoteTime;
 
     @TableField(typeHandler = JacksonTypeHandler.class,jdbcType = JdbcType.OTHER)
     private List<String> colorOptions;

@@ -27,9 +27,14 @@
             co.created_at,
             co.is_confirmed,
             co.quote,
-            co.proposal_image
+            co.proposal_image,
+            co.worker_id,
+            u.nick_name as workerName,
+            co.quote_time,
+            co.proposal_time
         from custom_orders as co
         left join products as p on co.product_id = p.id
+        left join users as u on co.worker_id=u.id
         where co.user_id=#{currentUserId}
         <if test="status != null">
             and co.status=#{status}
@@ -44,5 +49,90 @@
                 )
         </if>
         order by co.created_at Desc
+    </select>
+
+    <select id="selectAdminOrderList" resultMap="CustomOrderListDTO">
+        select
+        co.id,
+        p.id as productId,
+        p.title,
+        co.order_no,
+        co.purpose,
+        co.style,
+        co.status,
+        co.material,
+        co.min_budget,
+        co.max_budget,
+        co.size,
+        co.remark,
+        co.colors as colorOptions,
+        co.patterns as patternOptions,
+        co.images,
+        co.created_at,
+        co.is_confirmed,
+        co.quote,
+        co.proposal_image,
+        co.worker_id,
+        co.is_confirmed,
+        u.nick_name as workerName,
+        u_u.id as userId,
+        u_u.nick_name as userName
+        from custom_orders as co
+        left join products as p on co.product_id = p.id
+        left join users as u on co.worker_id=u.id
+        left join users as u_u on u_u.id=co.user_id
+        <where>
+            <if test="status != null">
+                co.status=#{status}
+            </if>
+            <if test="isPending">
+                and co.worker_id is null
+            </if>
+            <if test="key != null and key != ''">
+                and (co.purpose ilike concat('%',#{key},'%')
+                or co.style ilike concat('%',#{key},'%')
+                or co.material ilike concat('%',#{key},'%')
+                or co.order_no ilike concat('%',#{key},'%')
+                or p.title ilike concat('%',#{key},'%')
+                or co.remark ilike concat('%',#{key},'%')
+                )
+            </if>
+        </where>
+        order by co.created_at Desc
+    </select>
+
+    <select id="selectAdminCustomOrderDetail" resultMap="CustomOrderListDTO">
+        select
+        co.id,
+        p.id as productId,
+        p.title,
+        co.order_no,
+        co.purpose,
+        co.style,
+        co.status,
+        co.material,
+        co.min_budget,
+        co.max_budget,
+        co.size,
+        co.remark,
+        co.colors as colorOptions,
+        co.patterns as patternOptions,
+        co.images,
+        co.created_at,
+        co.is_confirmed,
+        co.quote,
+        co.proposal_image,
+        co.worker_id,
+        co.quote_time,
+        co.is_confirmed,
+        u.nick_name as workerName,
+        u_u.id as userId,
+        u_u.nick_name as userName,
+        co.proposal_time
+        from custom_orders as co
+        left join products as p on co.product_id = p.id
+        left join users as u on co.worker_id=u.id
+        left join users as u_u on u_u.id=co.user_id
+        where co.id=#{customOrderId}
     </select>
 </mapper>

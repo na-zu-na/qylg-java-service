@@ -9,6 +9,8 @@ import com.cc.qylgjavaservice.dto.WechatLoginRequest;
 import com.cc.qylgjavaservice.entity.Users;
 import org.springframework.web.bind.annotation.PathVariable;
 
+import java.util.List;
+
 public interface UserService {
     Result<UserDTO> weChatLogin(WechatLoginRequest wechatLoginRequest);
 
@@ -23,4 +25,6 @@ public interface UserService {
     public Result<AdminUserDetailDTO> getUsersDetail(Long userId);
 
     Result<UserDTO> adminLogin(AdminLoginDTO adminLoginDTO);
+
+    Result<List<Users>> getCharge();
 }

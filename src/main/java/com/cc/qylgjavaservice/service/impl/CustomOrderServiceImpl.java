@@ -1,15 +1,17 @@
 package com.cc.qylgjavaservice.service.impl;
 
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.cc.qylgjavaservice.dto.OrderDTO.CustomOrderCreateDTO;
-import com.cc.qylgjavaservice.dto.OrderDTO.CustomOrderListDTO;
-import com.cc.qylgjavaservice.dto.OrderDTO.CustomOrderListParamDTO;
+import com.cc.qylgjavaservice.dto.OrderDTO.*;
 import com.cc.qylgjavaservice.dto.Result;
+import com.cc.qylgjavaservice.entity.Conversation;
 import com.cc.qylgjavaservice.entity.CustomOrder;
-import com.cc.qylgjavaservice.entity.Orders;
+import com.cc.qylgjavaservice.entity.Users;
+import com.cc.qylgjavaservice.mapper.ConversationMapper;
 import com.cc.qylgjavaservice.mapper.CustomOrderMapper;
+import com.cc.qylgjavaservice.mapper.UserMapper;
 import com.cc.qylgjavaservice.service.CustomOrderService;
 import com.cc.qylgjavaservice.utils.UserContext;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -25,6 +28,12 @@ import java.util.regex.Pattern;
 public class CustomOrderServiceImpl extends ServiceImpl<CustomOrderMapper,CustomOrder> implements CustomOrderService {
     @Autowired
     private CustomOrderMapper customOrderMapper;
+
+    @Autowired
+    private UserMapper userMapper;
+
+    @Autowired
+    private ConversationMapper conversationMapper;
 
     // 预算正则匹配：数字-数字
     private static final Pattern RANGE_PATTERN = Pattern.compile("(\\d+)-(\\d+)");
@@ -156,6 +165,119 @@ public class CustomOrderServiceImpl extends ServiceImpl<CustomOrderMapper,Custom
         }
 
         customOrder.setIsConfirmed(1);
+
+        int i = customOrderMapper.updateById(customOrder);
+        if (i<1){
+            return Result.fail(500,"更新失败");
+        }
+
+        return Result.success();
+    }
+
+    @Override
+    public Result<AdminCustomOrderListVO> getAdminCustomOrderList(int page, int pageSize, Integer status, String keyword) {
+        Page<CustomOrderListDTO> dtoPage=new Page<>(page,pageSize);
+        boolean isPending=false;
+
+        //查列表
+        if (status!=null){
+            if (status == 4){
+                status=null;
+                isPending=true;
+            }
+        }
+        Page<CustomOrderListDTO> orderListDTOPage=customOrderMapper.selectAdminOrderList(dtoPage,status,keyword,isPending);
+        List<CustomOrderListDTO> orderListDTO=orderListDTOPage.getRecords();
+
+        AdminCustomOrderListVO adminOrderListVO= new AdminCustomOrderListVO();
+        adminOrderListVO.setOrderList(orderListDTO);
+        //设置分页
+        adminOrderListVO.setSize(orderListDTOPage.getSize());
+        adminOrderListVO.setTotal(orderListDTOPage.getTotal());
+        adminOrderListVO.setCurrent(orderListDTOPage.getCurrent());
+
+        //查统计
+        AdminCustomOrderListVO.Stats stats=customOrderMapper.selectStats();
+        adminOrderListVO.setStats(stats);
+
+        return Result.success(adminOrderListVO);
+    }
+
+    @Override
+    public Result<String> orderAssign(Long workerId, Long customOrderId) {
+        CustomOrder customOrder = customOrderMapper.selectById(customOrderId);
+        if (customOrder==null){
+            return Result.fail(404,"订单不存在");
+        }
+
+        Users users = userMapper.selectById(workerId);
+        if (users==null){
+            return Result.fail(404,"用户不存在");
+        }
+
+        customOrder.setWorkerId(workerId);
+        int i = customOrderMapper.updateById(customOrder);
+        if (i<1){
+            return Result.fail(500,"更新失败");
+        }
+        return Result.success("负责人已分配");
+    }
+
+    @Override
+    public Result<AdminCustomOrderDetailVO> getAdminCustomOrderDetail(Long customOrderId) {
+        CustomOrderListDTO dto=customOrderMapper.selectAdminCustomOrderDetail(customOrderId);
+        Conversation conversation = conversationMapper.selectOne(new LambdaQueryWrapper<Conversation>().eq(Conversation::getOrderId, customOrderId));
+
+        AdminCustomOrderDetailVO adminCustomOrderDetailVO=new AdminCustomOrderDetailVO();
+        adminCustomOrderDetailVO.setOrderList(dto);
+        adminCustomOrderDetailVO.setConversation(conversation);
+        return Result.success(adminCustomOrderDetailVO);
+    }
+
+    @Override
+    public Result<Void> updateOrderStatus(Long customOrderId, Integer status) {
+        CustomOrder customOrder = customOrderMapper.selectById(customOrderId);
+        if (customOrder==null){
+            return Result.fail(404,"没找到订单");
+        }
+
+        customOrder.setStatus(status);
+
+        int i = customOrderMapper.updateById(customOrder);
+        if (i<1){
+            return Result.fail(500,"更新失败");
+        }
+
+        return Result.success();
+    }
+
+    @Override
+    public Result<Void> updateCustomPic(Long customOrderId, CustomPicDTO url) {
+        CustomOrder customOrder = customOrderMapper.selectById(customOrderId);
+        if (customOrder==null){
+            return Result.fail(404,"没找到订单");
+        }
+
+        customOrder.setProposalImage(url.getUrl());
+        customOrder.setProposalTime(LocalDateTime.now());
+
+        int i = customOrderMapper.updateById(customOrder);
+        if (i<1){
+            return Result.fail(500,"更新失败");
+        }
+
+        return Result.success();
+    }
+
+    @Override
+    public Result<Void> updateCustomQuote(Long customOrderId, BigDecimal quote) {
+        CustomOrder customOrder = customOrderMapper.selectById(customOrderId);
+        if (customOrder==null){
+            return Result.fail(404,"没找到订单");
+        }
+
+        customOrder.setQuote(quote);
+        customOrder.setQuoteTime(LocalDateTime.now());
 
         int i = customOrderMapper.updateById(customOrder);
         if (i<1){

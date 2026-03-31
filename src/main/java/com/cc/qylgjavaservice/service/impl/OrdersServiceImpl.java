@@ -1,14 +1,14 @@
 package com.cc.qylgjavaservice.service.impl;
 
+import cn.hutool.db.sql.Order;
 import cn.hutool.json.JSONUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.conditions.update.LambdaUpdateChainWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.cc.qylgjavaservice.dto.OrderDTO.OrderCreateDTO;
-import com.cc.qylgjavaservice.dto.OrderDTO.OrderListDTO;
-import com.cc.qylgjavaservice.dto.OrderDTO.OrderQueryDTO;
+import com.cc.qylgjavaservice.dto.OrderDTO.*;
 import com.cc.qylgjavaservice.dto.Result;
+import com.cc.qylgjavaservice.entity.CustomOrder;
 import com.cc.qylgjavaservice.entity.OrderItems;
 import com.cc.qylgjavaservice.entity.Orders;
 import com.cc.qylgjavaservice.mapper.OrderItemsMapper;
@@ -167,6 +167,60 @@ public class OrdersServiceImpl extends ServiceImpl<OrdersMapper, Orders> impleme
             return Result.fail(404,"没找到");
         }
     }
+
+    @Override
+    public Result<Void> updateOrderStatus(Long orderId, Integer status) {
+        // 1. 参数校验
+        if (orderId == null) {
+            return Result.fail(400, "ID不能为空");
+        }
+        if (status == null) {
+            return Result.fail(400, "状态不能为空");
+        }
+        if (status != 2 && status != 1) {
+            return Result.fail(400, "状态值非法（0正常，1下架）");
+        }
+
+        Orders orders = ordersMapper.selectById(orderId);
+        if (orders == null) {
+            return Result.fail(404, "订单不存在");
+        }
+
+        // 3. 更新
+        orders.setStatus(status);
+        if (status==1){
+            orders.setShipped(LocalDateTime.now());
+        } else {
+            orders.setClosed(LocalDateTime.now());
+        }
+
+        int rows = ordersMapper.updateById(orders);
+
+        return rows > 0 ? Result.success() : Result.fail("样式状态更新失败");
+    }
+
+    @Override
+    public Result<AdminOrderListVO> getAdminOrderList(int page, int pageSize, Integer status, String keyword) {
+        Page<OrderListDTO> dtoPage=new Page<>(page,pageSize);
+        //查列表
+        Page<OrderListDTO> orderListDTOPage=ordersMapper.selectAdminOrderList(dtoPage,status,keyword);
+        List<OrderListDTO> orderListDTO=orderListDTOPage.getRecords();
+
+        AdminOrderListVO adminOrderListVO=new AdminOrderListVO();
+        adminOrderListVO.setOrderList(orderListDTO);
+        //设置分页
+        adminOrderListVO.setSize(orderListDTOPage.getSize());
+        adminOrderListVO.setTotal(orderListDTOPage.getTotal());
+        adminOrderListVO.setCurrent(orderListDTOPage.getCurrent());
+
+        //查统计
+        AdminOrderListVO.Stats stats=ordersMapper.selectStats();
+        adminOrderListVO.setStats(stats);
+
+        return Result.success(adminOrderListVO);
+    }
+
+
 
     /**
      * 生成唯一订单号：年月日时分秒 + 随机数

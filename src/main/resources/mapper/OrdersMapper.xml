@@ -96,4 +96,68 @@
         where o.id=#{id}
         group by o.id, o.order_no, o.status, o.created_at, o.total_price, o.total_price, o.receiver_name, o.receiver_phone, o.receiver_address
     </select>
+
+    <select id="selectAdminOrderList" resultMap="OrderListResultMap">
+        SELECT
+        o.id,
+        o.order_no AS "orderNo",
+        o.status AS "status",
+        o.created_at AS "createTime",
+        o.receiver_name AS name,
+        o.receiver_phone AS phone,
+        o.receiver_address AS location,
+        o.closed,
+        o.shipped,
+
+        COALESCE(SUM(i.price * i.count), 0) AS "totalPrice",
+        COALESCE(SUM(i.count), 0) AS "totalCount",
+
+        COALESCE(
+        json_agg(
+        json_build_object(
+        'id', i.id,
+        'goodsId', p.id,
+        'title', p.title,
+        'cover', p.cover,
+        'count', i.count,
+        'price', i.price
+        )
+        ) FILTER (WHERE i.id IS NOT NULL),
+        '[]'::json
+        ) AS goods
+
+        FROM orders o
+        LEFT JOIN order_items i ON o.id = i.order_id
+        LEFT JOIN products p ON i.goods_id = p.id
+
+        <where>
+            <if test="status != null">
+                o.status = #{status}
+            </if>
+
+            <if test="keyword != null and keyword != ''">
+                AND (
+                o.order_no ILIKE '%' || #{keyword} || '%'
+                OR p.title ILIKE '%' || #{keyword} || '%'
+                <if test="keyword.matches('^[0-9]+$')">
+                    OR o.user_id = CAST(#{keyword} AS BIGINT)
+                    OR o.id = CAST(#{keyword} AS BIGINT)
+                </if>
+                )
+            </if>
+        </where>
+
+        GROUP BY
+        o.id,
+        o.order_no,
+        o.status,
+        o.created_at,
+        o.receiver_name,
+        o.receiver_phone,
+        o.receiver_address,
+        o.closed,
+        o.shipped
+
+        ORDER BY o.created_at DESC
+    </select>
 </mapper>

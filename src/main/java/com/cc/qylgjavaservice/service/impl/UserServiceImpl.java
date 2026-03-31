@@ -323,4 +323,11 @@ public class UserServiceImpl extends ServiceImpl<UserMapper,Users> implements Us
 
         return Result.fail(401, "用户名或密码错误");
     }
+
+    @Override
+    public Result<List<Users>> getCharge() {
+        List<Users> users = userMapper.selectList(new LambdaQueryWrapper<Users>().eq(Users::getRoleCode, UserRole.WORKER));
+
+        return Result.success(users);
+    }
 }
