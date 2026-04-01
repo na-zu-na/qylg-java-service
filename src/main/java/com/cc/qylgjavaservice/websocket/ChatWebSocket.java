@@ -2,7 +2,11 @@ package com.cc.qylgjavaservice.websocket;
 
 import com.alibaba.fastjson2.JSONObject;
 import com.cc.qylgjavaservice.entity.ChatMessage;
+import com.cc.qylgjavaservice.entity.Users;
+import com.cc.qylgjavaservice.enums.UserRole;
+import com.cc.qylgjavaservice.mapper.UserMapper;
 import com.cc.qylgjavaservice.service.ChatService;
+import com.cc.qylgjavaservice.service.UserService;
 import jakarta.websocket.OnClose;
 import jakarta.websocket.OnMessage;
 import jakarta.websocket.OnOpen;
@@ -30,6 +34,8 @@ public class ChatWebSocket {
 
     private static RedissonClient redissonClient;
 
+    private static UserMapper userMapper;
+
     @Autowired
     public void setRedissonClient(RedissonClient redissonClient) {
         ChatWebSocket.redissonClient = redissonClient;
@@ -40,6 +46,9 @@ public class ChatWebSocket {
         ChatWebSocket.chatService = chatService;
     }
 
+    @Autowired
+    public void setUserService(UserMapper userMapper){ChatWebSocket.userMapper=userMapper;}
+
     /**
      * 建立连接
      */
@@ -48,8 +57,10 @@ public class ChatWebSocket {
 
         UserSessionManager.add(userId, session);
         RScoredSortedSet<Long> scoredSortedSet = redissonClient.getScoredSortedSet(CS_QUEUE_KEY);
+        Users users = userMapper.selectById(userId);
+        UserRole roleCode = users.getRoleCode();
 
-        if (userId<100 || userId>300){
+        if (roleCode==UserRole.USER){
             System.out.println("用户连接：" + userId);
         }
         else {
@@ -68,8 +79,10 @@ public class ChatWebSocket {
 
         UserSessionManager.remove(userId);
         RScoredSortedSet<Long> scoredSortedSet = redissonClient.getScoredSortedSet(CS_QUEUE_KEY);
+        Users users = userMapper.selectById(userId);
+        UserRole roleCode = users.getRoleCode();
 
-        if (userId<100 || userId>300){
+        if (roleCode==UserRole.USER){
             String lua =
                     "local csId = redis.call('HGET', KEYS[2], ARGV[1]); " +
                             "if not csId then return 0 end; " +

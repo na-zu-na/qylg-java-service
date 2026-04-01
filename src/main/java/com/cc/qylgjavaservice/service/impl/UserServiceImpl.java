@@ -2,17 +2,17 @@ package com.cc.qylgjavaservice.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.cc.qylgjavaservice.dto.*;
-import com.cc.qylgjavaservice.dto.userDTO.AdminUserDetailDTO;
-import com.cc.qylgjavaservice.dto.userDTO.AdminUserListDTO;
-import com.cc.qylgjavaservice.dto.userDTO.UserDTO;
+import com.cc.qylgjavaservice.dto.userDTO.*;
 import com.cc.qylgjavaservice.entity.*;
 import com.cc.qylgjavaservice.enums.UserRole;
 import com.cc.qylgjavaservice.enums.UserStatus;
 import com.cc.qylgjavaservice.mapper.*;
 import com.cc.qylgjavaservice.service.UserService;
 import com.cc.qylgjavaservice.utils.JwtUtil;
+import com.cc.qylgjavaservice.utils.UserContext;
 import org.redisson.api.RBucket;
 import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -145,7 +145,11 @@ public class UserServiceImpl extends ServiceImpl<UserMapper,Users> implements Us
         //插入redis
         RBucket<Object> bucket = redissonClient.getBucket(USER_TOKEN_KEY + token);
         bucket.set(id.toString(),Duration.ofHours(1));
-        UserDTO userDTO=new UserDTO(token,id,nickName,avatar_url);
+        UserDTO userDTO=new UserDTO();
+        userDTO.setToken(token);
+        userDTO.setId(id);
+        userDTO.setNickName(nickName);
+        userDTO.setAvatarUrl(avatar_url);
 
         return Result.success(userDTO);
     }
@@ -308,7 +312,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper,Users> implements Us
                 .eq(Users::getPassword,adminLoginDTO.getPassword()));
 
         if (users!=null){
-            if (users.getRoleCode()!=UserRole.ADMIN){
+            if (users.getRoleCode()==UserRole.USER){
                 return Result.fail(401,"权限不足");
             }
 
@@ -316,7 +320,12 @@ public class UserServiceImpl extends ServiceImpl<UserMapper,Users> implements Us
             //加入redis
             RBucket<Object> bucket = redissonClient.getBucket(ADMIN_TOKEN_KEY+token);
             bucket.set(users.getId().toString(),Duration.ofHours(1));
-            UserDTO userDTO=new UserDTO(token,users.getId(),users.getNickName(),users.getAvatarUrl());
+            UserDTO userDTO=new UserDTO();
+            userDTO.setId(users.getId());
+            userDTO.setAvatarUrl(users.getAvatarUrl());
+            userDTO.setNickName(users.getNickName());
+            userDTO.setToken(token);
+            userDTO.setUserRole(users.getRoleCode());
 
             return Result.success(userDTO);
         }
@@ -329,5 +338,127 @@ public class UserServiceImpl extends ServiceImpl<UserMapper,Users> implements Us
         List<Users> users = userMapper.selectList(new LambdaQueryWrapper<Users>().eq(Users::getRoleCode, UserRole.WORKER));
 
         return Result.success(users);
+    }
+
+    @Override
+    public Result<AdminAccountListVO> accountsList(int page, int pageSize, Integer status, String keyword, Integer role_code) {
+        Page<Users> usersPage=new Page<>(page,pageSize);
+
+        //查权限
+        if (checkAuth()){
+            return Result.fail(401,"权限不足");
+        }
+
+        //查列表
+        Page<Users> dto = userMapper.selectAccountList(usersPage,status,keyword,role_code);
+
+        AdminAccountListVO adminAccountListVO=new AdminAccountListVO();
+        //赋值
+        adminAccountListVO.setSize(dto.getSize());
+        adminAccountListVO.setTotal(dto.getTotal());
+        adminAccountListVO.setCurrent(dto.getCurrent());
+        adminAccountListVO.setUsers(dto.getRecords());
+
+        //查统计
+        AdminAccountListVO.Stats stats=userMapper.selectAccountStats();
+        adminAccountListVO.setStats(stats);
+
+        return Result.success(adminAccountListVO);
+    }
+
+    @Override
+    public Result<Void> addAccount(CreateUserDTO dto) {
+        if (dto==null){
+            return Result.fail(400,"请求参数错误");
+        }
+
+        //查权限
+        if (checkAuth()){
+            return Result.fail(401,"权限不足");
+        }
+
+        Users user = new Users();
+        user.setUserName(dto.getUserName());
+        user.setNickName(dto.getNickName());
+        user.setPhone(dto.getPhone());
+        if (dto.getPassword()!=null){
+            user.setPassword(dto.getPassword());
+        } else user.setPassword("123456");
+
+        UserRole role=null;
+        if (dto.getRoleCode()==0){
+            role=UserRole.ADMIN;
+        } else if (dto.getRoleCode()==1) {
+            role=UserRole.WORKER;
+        } else {
+            return Result.fail(400,"参数错误");
+        }
+
+        user.setRoleCode(role);
+        user.setStatusCode(UserStatus.NORMAL);
+
+        int insert = userMapper.insert(user);
+        if (insert<1){
+            return Result.fail(500,"插入错误");
+        }
+
+        return Result.success();
+    }
+
+    @Override
+    public Result<Void> resetPassword(CreateUserDTO dto) {
+        if (dto.getId()==null){
+            return Result.fail(400,"请输入id");
+        }
+
+        //查权限
+        if (checkAuth()){
+            return Result.fail(401,"权限不足");
+        }
+
+        Users users = userMapper.selectById(dto.getId());
+        if (users==null){
+            return Result.fail(404,"用户不存在");
+        }
+
+        users.setPassword(dto.getPassword());
+        int i = userMapper.updateById(users);
+
+        if (i<1){
+            return Result.fail(500,"更新错误");
+        }
+
+        return Result.success();
+    }
+
+    @Override
+    public Result<Void> deleteAccount(Long accountId) {
+        //查权限
+        if (checkAuth()){
+            return Result.fail(401,"权限不足");
+        }
+
+        Users users = userMapper.selectById(accountId);
+        if (users==null){
+            return Result.fail(404,"用户不存在");
+        }
+
+        int i = userMapper.deleteById(accountId);
+        if (i<1){
+            return Result.fail(500,"更新错误");
+        }
+
+        return Result.success();
+    }
+
+    private boolean checkAuth(){
+        Long currentUserId = UserContext.getCurrentUserId();
+        Users users = userMapper.selectById(currentUserId);
+        //查权限
+        if (users!=null){
+            return users.getRoleCode() == UserRole.USER;
+        }
+
+        return true;
     }
 }

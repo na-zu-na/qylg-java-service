@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.annotation.*;
 import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
 import com.cc.qylgjavaservice.enums.UserRole;
 import com.cc.qylgjavaservice.enums.UserStatus;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Data;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -42,10 +43,12 @@ public class Users {
     private UserStatus statusCode = UserStatus.NORMAL;
 
     @TableField(value = "created_at", fill = FieldFill.INSERT)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm")
     private LocalDateTime createdAt;
 
 
     @TableField(value = "updated_at", fill = FieldFill.INSERT_UPDATE)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm")
     private LocalDateTime updatedAt;
 
     private String userName;
