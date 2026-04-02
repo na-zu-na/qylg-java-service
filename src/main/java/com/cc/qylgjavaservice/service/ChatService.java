@@ -1,8 +1,10 @@
 package com.cc.qylgjavaservice.service;
 
-import com.cc.qylgjavaservice.dto.ChatSessionVO;
+import com.cc.qylgjavaservice.dto.chatDTO.ChatSessionVO;
 import com.cc.qylgjavaservice.dto.Result;
+import com.cc.qylgjavaservice.dto.chatDTO.ChatSessionsListVO;
 import com.cc.qylgjavaservice.entity.ChatMessage;
+import jakarta.servlet.http.HttpServletResponse;
 
 public interface ChatService {
 
@@ -13,4 +15,8 @@ public interface ChatService {
     void ackMessage(Long messageId);
 
     void addAckRetryTask(Long id, int i);
+
+    Result<ChatSessionsListVO> getSessionsList(int page, int pageSize, Integer status, String keyword);
+
+    void exportHtml(HttpServletResponse response, Long sessionId);
 }

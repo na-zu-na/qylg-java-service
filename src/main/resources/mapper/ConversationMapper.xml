@@ -1,6 +1,58 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.cc.qylgjavaservice.mapper.ConversationMapper">
+    <resultMap id="SessionPageResultMap" type="com.cc.qylgjavaservice.dto.chatDTO.SessionDTO">
+        <id column="id" property="id"/>
+        <result column="type" property="type"/>
+        <result column="orderId" property="orderId"/>
+        <result column="currentCsId" property="currentCsId"/>
+        <result column="currentCsName" property="currentCsName"/>
+        <result column="userId" property="userId"/>
+        <result column="userName" property="userName"/>
+        <result column="lastMessage" property="lastMessage"/>
+        <result column="lastMessageTime" property="lastMessageTime"/>
+        <result column="updatedAt" property="updatedAt"/>
+    </resultMap>
+
+    <sql id="SessionBaseSql">
+        SELECT
+            c.id,
+            c.type,
+            c.order_id AS "orderId",
+            c.current_cs_id AS "currentCsId",
+            COALESCE(cs.user_name, cs.nick_name, cs.phone, CAST(cs.id AS text)) AS "currentCsName",
+            client_user.id AS "userId",
+            COALESCE(client_user.nick_name, client_user.user_name, client_user.phone, CAST(client_user.id AS text)) AS "userName",
+            c.last_message AS "lastMessage",
+            c.last_message_time AS "lastMessageTime",
+            c.updated_at AS "updatedAt"
+        FROM conversations c
+        LEFT JOIN users cs ON cs.id = c.current_cs_id
+        LEFT JOIN (
+            SELECT
+                cm.conversation_id,
+                MIN(cm.user_id) AS user_id
+            FROM conversation_members cm
+            INNER JOIN users u ON u.id = cm.user_id
+            WHERE u.role_code = 2
+            GROUP BY cm.conversation_id
+        ) client_map ON client_map.conversation_id = c.id
+        LEFT JOIN users client_user ON client_user.id = client_map.user_id
+    </sql>
+
+    <sql id="SessionKeywordWhere">
+        <where>
+            <if test="keyword != null and keyword != ''">
+                (
+                CAST(c.id AS text) = #{keyword}
+                OR COALESCE(cs.nick_name, cs.user_name, cs.phone, CAST(cs.id AS text)) ILIKE CONCAT('%', #{keyword}, '%')
+                OR COALESCE(client_user.nick_name, client_user.user_name, client_user.phone, CAST(client_user.id AS text)) ILIKE CONCAT('%', #{keyword}, '%')
+                OR c.last_message ILIKE CONCAT('%', #{keyword}, '%')
+                )
+            </if>
+        </where>
+    </sql>
+
     <select id="ExistingConversationId" resultType="Long">
         SELECT conversation_id
         FROM conversation_members
@@ -8,6 +60,82 @@
         GROUP BY conversation_id
         HAVING COUNT(DISTINCT user_id) = 2
         LIMIT 1
+    </select>
+
+    <select id="selectSessionPage" resultMap="SessionPageResultMap">
+        <include refid="SessionBaseSql"/>
+        <where>
+            <if test="keyword != null and keyword != ''">
+                (
+                CAST(c.id AS text) = #{keyword}
+                OR COALESCE(cs.nick_name, cs.user_name, cs.phone, CAST(cs.id AS text)) ILIKE CONCAT('%', #{keyword}, '%')
+                OR COALESCE(client_user.nick_name, client_user.user_name, client_user.phone, CAST(client_user.id AS text)) ILIKE CONCAT('%', #{keyword}, '%')
+                OR c.last_message ILIKE CONCAT('%', #{keyword}, '%')
+                )
+            </if>
+
+            <if test="status != null">
+                <choose>
+                    <when test="status == 1">
+                        <choose>
+                            <when test="onlineUserIds != null and onlineUserIds.size() > 0">
+                                AND client_user.id IN
+                                <foreach collection="onlineUserIds" item="userId" open="(" separator="," close=")">
+                                    #{userId}
+                                </foreach>
+                            </when>
+                            <otherwise>
+                                AND 1 = 0
+                            </otherwise>
+                        </choose>
+                    </when>
+                    <when test="status == 0">
+                        <choose>
+                            <when test="offlineUserIds != null and offlineUserIds.size() > 0 and includeNullUser">
+                                AND (
+                                client_user.id IN
+                                <foreach collection="offlineUserIds" item="userId" open="(" separator="," close=")">
+                                    #{userId}
+                                </foreach>
+                                OR client_user.id IS NULL
+                                )
+                            </when>
+                            <when test="offlineUserIds != null and offlineUserIds.size() > 0">
+                                AND client_user.id IN
+                                <foreach collection="offlineUserIds" item="userId" open="(" separator="," close=")">
+                                    #{userId}
+                                </foreach>
+                            </when>
+                            <when test="includeNullUser">
+                                AND client_user.id IS NULL
+                            </when>
+                            <otherwise>
+                                AND 1 = 0
+                            </otherwise>
+                        </choose>
+                    </when>
+                </choose>
+            </if>
+        </where>
+        ORDER BY c.last_message_time DESC NULLS LAST, c.id DESC
+    </select>
+
+    <select id="selectSessionUserIds" resultType="java.lang.Long">
+        SELECT client_user.id
+        FROM conversations c
+        LEFT JOIN users cs ON cs.id = c.current_cs_id
+        LEFT JOIN (
+        SELECT
+        cm.conversation_id,
+        MIN(cm.user_id) AS user_id
+        FROM conversation_members cm
+        INNER JOIN users u ON u.id = cm.user_id
+        WHERE u.role_code = 2
+        GROUP BY cm.conversation_id
+        ) client_map ON client_map.conversation_id = c.id
+        LEFT JOIN users client_user ON client_user.id = client_map.user_id
+        <include refid="SessionKeywordWhere"/>
+        ORDER BY c.last_message_time DESC NULLS LAST, c.id DESC
     </select>
 
 </mapper>

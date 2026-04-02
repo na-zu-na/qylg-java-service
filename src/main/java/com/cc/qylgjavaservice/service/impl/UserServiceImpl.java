@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.cc.qylgjavaservice.dto.*;
+import com.cc.qylgjavaservice.dto.chatDTO.ConversationSessionsDTO;
 import com.cc.qylgjavaservice.dto.userDTO.*;
 import com.cc.qylgjavaservice.entity.*;
 import com.cc.qylgjavaservice.enums.UserRole;

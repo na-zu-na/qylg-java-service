@@ -2,17 +2,26 @@ package com.cc.qylgjavaservice.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
-import com.cc.qylgjavaservice.dto.ChatSessionVO;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.cc.qylgjavaservice.dto.chatDTO.ChatExportVO;
+import com.cc.qylgjavaservice.dto.chatDTO.ChatSessionVO;
 import com.cc.qylgjavaservice.dto.Result;
+import com.cc.qylgjavaservice.dto.chatDTO.ChatSessionsListVO;
+import com.cc.qylgjavaservice.dto.chatDTO.SessionDTO;
 import com.cc.qylgjavaservice.entity.ChatMessage;
 import com.cc.qylgjavaservice.entity.Conversation;
 import com.cc.qylgjavaservice.entity.ConversationMember;
+import com.cc.qylgjavaservice.entity.Users;
+import com.cc.qylgjavaservice.enums.UserRole;
 import com.cc.qylgjavaservice.mapper.ChatMessageMapper;
 import com.cc.qylgjavaservice.mapper.ConversationMapper;
 import com.cc.qylgjavaservice.mapper.ConversationMemberMapper;
+import com.cc.qylgjavaservice.mapper.UserMapper;
 import com.cc.qylgjavaservice.service.ChatService;
-import com.cc.qylgjavaservice.service.UserService;
 import com.cc.qylgjavaservice.utils.UserContext;
+import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
+import org.thymeleaf.TemplateEngine;
 import org.redisson.api.RBucket;
 import org.redisson.api.RScoredSortedSet;
 import org.redisson.api.RScript;
@@ -20,14 +29,22 @@ import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.thymeleaf.context.Context;
 
+import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static com.cc.qylgjavaservice.utils.RedisConstants.*;
 
 @Service
+@RequiredArgsConstructor
 public class ChatServiceImpl implements ChatService {
     @Autowired
     private ChatMessageMapper chatMessageMapper;
@@ -36,9 +53,11 @@ public class ChatServiceImpl implements ChatService {
     @Autowired
     private ConversationMemberMapper conversationMemberMapper;
     @Autowired
-    private UserService userService;
+    private UserMapper userMapper;
     @Autowired
     private RedissonClient redissonClient;
+
+    private final TemplateEngine templateEngine;
 
     /**
      * 发送消息
@@ -74,12 +93,16 @@ public class ChatServiceImpl implements ChatService {
 
         //创建会话成员表
         if (conversationMember==null){
+            Long senderId = message.getSenderId();
+            Users users = userMapper.selectById(senderId);
+            UserRole userRole=users.getRoleCode();
+
             conversationMember=new ConversationMember();
-            conversationMember.setUser_id(message.getSenderId());
+            conversationMember.setUser_id(senderId);
             conversationMember.setConversation_id(message.getConversationId());
-            if (message.getSenderId()>100 && message.getSenderId()<200){
+            if (userRole==UserRole.WORKER){
                 conversationMember.setRole(1);
-            } else if (message.getSenderId()>200 && message.getSenderId()<300) {
+            } else if (userRole==UserRole.ADMIN) {
                 conversationMember.setRole(0);
             }
             else conversationMember.setRole(2);
@@ -234,6 +257,143 @@ public class ChatServiceImpl implements ChatService {
         bucket.set(retryCount, Duration.ofMinutes(30));
     }
 
+    @Override
+    public Result<ChatSessionsListVO> getSessionsList(int page, int pageSize, Integer status, String keyword) {
+
+        // 页码、分页大小兜底
+        int safePage = Math.max(page, 1);
+        int safePageSize = Math.max(pageSize, 1);
+
+        // 查所有会话对应的用户ID（用于统计在线/离线）
+        List<Long> sessionUserIds = conversationMapper.selectSessionUserIds(keyword);
+        if (sessionUserIds == null || sessionUserIds.isEmpty()) {
+            return Result.success(emptySessionList(safePage, safePageSize));
+        }
+
+        // 统计在线 / 离线用户
+        long onlineCount = 0L;
+        long nullUserCount = 0L;
+        Set<Long> onlineUserIds = new HashSet<>();
+        Set<Long> offlineUserIds = new HashSet<>();
+
+        for (Long userId : sessionUserIds) {
+            if (userId == null) {
+                nullUserCount++;
+                continue;
+            }
+            if (isUserOnline(userId)) {
+                onlineCount++;
+                onlineUserIds.add(userId);
+            } else {
+                offlineUserIds.add(userId);
+            }
+        }
+
+        long totalCount = sessionUserIds.size();      // 总数
+        long historyCount = totalCount - onlineCount; // 离线数
+
+        // 查分页会话列表
+        Page<SessionDTO> sessionPage = conversationMapper.selectSessionPage(
+                new Page<>(safePage, safePageSize),
+                keyword,
+                status,
+                new ArrayList<>(onlineUserIds),
+                new ArrayList<>(offlineUserIds),
+                nullUserCount > 0
+        );
+
+        // 给每条会话标记是否在线
+        List<SessionDTO> records = sessionPage.getRecords();
+        for (SessionDTO record : records) {
+            record.setOnline(isUserOnline(record.getUserId()));
+        }
+
+        // 封装返回数据
+        ChatSessionsListVO vo = new ChatSessionsListVO();
+        vo.setConversations(records);
+        vo.setCurrent((long) safePage);
+        vo.setSize((long) safePageSize);
+        vo.setTotal(sessionPage.getTotal());
+
+        // 统计信息
+        ChatSessionsListVO.Stats stats = new ChatSessionsListVO.Stats();
+        stats.setTotal(totalCount);
+        stats.setOnLine(onlineCount);
+        stats.setHistory(historyCount);
+        vo.setStats(stats);
+
+        return Result.success(vo);
+    }
+
+    @Override
+    public void exportHtml(HttpServletResponse response, Long sessionId) {
+        // 1. 查询聊天记录
+        List<ChatMessage> messageList = chatMessageMapper.selectList(
+                new LambdaQueryWrapper<ChatMessage>()
+                        .eq(ChatMessage::getConversationId, sessionId)
+                        .orderByAsc(ChatMessage::getCreatedAt)
+        );
+
+        Long currentUserId = UserContext.getCurrentUserId();
+
+        // 2. 批量查询发送者信息，避免 N+1
+        Set<Long> senderIds = messageList.stream()
+                .map(ChatMessage::getSenderId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        Map<Long, Users> userMap;
+        if (!senderIds.isEmpty()) {
+            userMap = userMapper.selectByIds(senderIds).stream()
+                    .collect(Collectors.toMap(Users::getId, Function.identity(), (a, b) -> a));
+        } else {
+            userMap = new HashMap<>();
+        }
+
+        // 3. 组装模板数据
+        List<ChatExportVO> data = messageList.stream().map(msg -> {
+            ChatExportVO vo = new ChatExportVO();
+
+            // 是否本人发送
+            vo.setSelf(Objects.equals(msg.getSenderId(), currentUserId));
+
+            // 发送者名称
+            Users user = userMap.get(msg.getSenderId());
+            if (user != null){
+                if (user.getNickName()!=null){
+                    vo.setSenderName(user.getNickName());
+                } else {
+                    vo.setSenderName(user.getUserName()!=null ? user.getUserName() : user.getId().toString());
+                }
+            } else {
+                vo.setSenderName("未知用户");
+                vo.setSelf(true);
+            }
+
+
+            // 消息内容
+            vo.setContent(formatContent(msg.getContent()));
+
+            // 时间
+            vo.setTime(formatTime(msg.getCreatedAt()));
+
+            return vo;
+        }).toList();
+
+        // 4. Thymeleaf 渲染
+        Context context = new Context();
+        context.setVariable("messages", data);
+        context.setVariable("sessionId", sessionId);
+        context.setVariable("exportTime", java.time.LocalDateTime.now().format(
+                DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
+        ));
+
+        String html = templateEngine.process("chat", context);
+
+        // 5. 输出为下载文件
+        writeHtmlToResponse(response, html, "chat_" + sessionId + ".html");
+    }
+
     //查询历史记录
     public List<ChatMessage> getHistory(Long conversationId, Long lastId) {
         QueryWrapper<ChatMessage> wrapper=new QueryWrapper<>();
@@ -336,6 +496,9 @@ public class ChatServiceImpl implements ChatService {
                         .eq(ConversationMember::getUser_id, userId)
         );
 
+        Users users = userMapper.selectById(userId);
+        UserRole role=users.getRoleCode();
+
         if (existing == null) {
             ConversationMember member = new ConversationMember();
             member.setConversation_id(conversationId);
@@ -343,15 +506,95 @@ public class ChatServiceImpl implements ChatService {
             member.setUnread_count(0);
 
             // 复用你的角色判断逻辑
-            if (userId > 100 && userId < 200) {
-                member.setRole(2); // 假设 2 是商家
-            } else if (userId > 200 && userId < 300) {
-                member.setRole(3); // 假设 3 是客服
+            if (role==UserRole.WORKER) {
+                member.setRole(1); // 假设 1 是商家
+            } else if (role==UserRole.ADMIN) {
+                member.setRole(0); // 假设 3 是客服
             } else {
-                member.setRole(1); // 默认角色
+                member.setRole(2); // 默认角色
             }
 
             conversationMemberMapper.insert(member);
         }
+    }
+
+    private ChatSessionsListVO emptySessionList(int page, int pageSize) {
+        ChatSessionsListVO vo = new ChatSessionsListVO();
+        vo.setConversations(new ArrayList<>());
+        vo.setCurrent((long) Math.max(page, 1));
+        vo.setSize((long) Math.max(pageSize, 1));
+        vo.setTotal(0L);
+
+        ChatSessionsListVO.Stats stats = new ChatSessionsListVO.Stats();
+        stats.setTotal(0L);
+        stats.setOnLine(0L);
+        stats.setHistory(0L);
+        vo.setStats(stats);
+        return vo;
+    }
+
+    private boolean isUserOnline(Long userId) {
+        if (userId == null) {
+            return false;
         }
+        return redissonClient.getBucket(CHAT_ONLINE_USER_KEY + userId).isExists();
+    }
+
+    /**
+     * 将 HTML 写入响应，触发浏览器下载
+     */
+    private void writeHtmlToResponse(HttpServletResponse response, String html, String fileName) {
+        try {
+            String encodedFileName = URLEncoder.encode(fileName, StandardCharsets.UTF_8)
+                    .replaceAll("\\+", "%20");
+
+            response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+            response.setContentType("text/html;charset=UTF-8");
+            response.setHeader("Content-Disposition",
+                    "attachment; filename*=UTF-8''" + encodedFileName);
+            response.getWriter().write(html);
+            response.getWriter().flush();
+        } catch (IOException e) {
+            throw new RuntimeException("导出HTML失败", e);
+        }
+    }
+
+    /**
+     * 消息内容格式化
+     * 这里只做最基础处理：
+     * 1. null 转空串
+     * 2. 换行转 <br>
+     *
+     * 如果你内容里可能带 HTML 标签，建议做转义，防止标签直接渲染
+     */
+    private String formatContent(String content) {
+        if (content == null) {
+            return "";
+        }
+        return escapeHtml(content).replace("\n", "<br/>");
+    }
+
+    /**
+     * 时间格式化
+     */
+    private String formatTime(java.time.LocalDateTime time) {
+        if (time == null) {
+            return "";
+        }
+        return time.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+    }
+
+    /**
+     * 基础 HTML 转义，防止消息内容中的标签被浏览器当成 HTML 解析
+     */
+    private String escapeHtml(String text) {
+        if (text == null) {
+            return "";
+        }
+        return text.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&#39;");
+    }
 }

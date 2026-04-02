@@ -1,7 +1,7 @@
 package com.cc.qylgjavaservice.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
-import com.cc.qylgjavaservice.dto.ConversationSessionsDTO;
+import com.cc.qylgjavaservice.dto.chatDTO.ConversationSessionsDTO;
 import com.cc.qylgjavaservice.entity.ConversationMember;
 import org.apache.ibatis.annotations.Mapper;
 

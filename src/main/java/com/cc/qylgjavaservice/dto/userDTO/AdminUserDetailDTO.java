@@ -1,10 +1,9 @@
 package com.cc.qylgjavaservice.dto.userDTO;
 
-import com.cc.qylgjavaservice.dto.ConversationSessionsDTO;
+import com.cc.qylgjavaservice.dto.chatDTO.ConversationSessionsDTO;
 import com.cc.qylgjavaservice.entity.*;
 import lombok.Data;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 @Data

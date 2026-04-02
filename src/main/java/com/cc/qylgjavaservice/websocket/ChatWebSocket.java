@@ -20,6 +20,7 @@ import com.alibaba.fastjson2.JSON;
 import org.springframework.web.socket.server.standard.SpringConfigurator;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -56,6 +57,7 @@ public class ChatWebSocket {
     public void onOpen(Session session, @PathParam("userId") Long userId) {
 
         UserSessionManager.add(userId, session);
+        markUserOnline(userId, session.getId());
         RScoredSortedSet<Long> scoredSortedSet = redissonClient.getScoredSortedSet(CS_QUEUE_KEY);
         Users users = userMapper.selectById(userId);
         UserRole roleCode = users.getRoleCode();
@@ -75,9 +77,10 @@ public class ChatWebSocket {
      * 关闭连接
      */
     @OnClose
-    public void onClose(@PathParam("userId") Long userId) {
+    public void onClose(Session session, @PathParam("userId") Long userId) {
 
-        UserSessionManager.remove(userId);
+        UserSessionManager.remove(userId, session);
+        markUserOffline(userId, session.getId());
         RScoredSortedSet<Long> scoredSortedSet = redissonClient.getScoredSortedSet(CS_QUEUE_KEY);
         Users users = userMapper.selectById(userId);
         UserRole roleCode = users.getRoleCode();
@@ -169,6 +172,22 @@ public class ChatWebSocket {
         resp.put("receiverId",message.getReceiverId());
 
         return resp;
+    }
+
+    private void markUserOnline(Long userId, String sessionId) {
+        RSet<String> userSessions = redissonClient.getSet(CHAT_ONLINE_SESSION_KEY + userId);
+        userSessions.add(sessionId);
+        userSessions.expire(Duration.ofHours(1));
+        redissonClient.getBucket(CHAT_ONLINE_USER_KEY + userId).set(Boolean.TRUE, Duration.ofHours(1));
+    }
+
+    private void markUserOffline(Long userId, String sessionId) {
+        RSet<String> userSessions = redissonClient.getSet(CHAT_ONLINE_SESSION_KEY + userId);
+        userSessions.remove(sessionId);
+        if (userSessions.isEmpty()) {
+            userSessions.delete();
+            redissonClient.getBucket(CHAT_ONLINE_USER_KEY + userId).delete();
+        }
     }
 
 }
