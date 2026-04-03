@@ -3,11 +3,8 @@ package com.cc.qylgjavaservice.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.cc.qylgjavaservice.dto.chatDTO.ChatExportVO;
-import com.cc.qylgjavaservice.dto.chatDTO.ChatSessionVO;
+import com.cc.qylgjavaservice.dto.chatDTO.*;
 import com.cc.qylgjavaservice.dto.Result;
-import com.cc.qylgjavaservice.dto.chatDTO.ChatSessionsListVO;
-import com.cc.qylgjavaservice.dto.chatDTO.SessionDTO;
 import com.cc.qylgjavaservice.entity.ChatMessage;
 import com.cc.qylgjavaservice.entity.Conversation;
 import com.cc.qylgjavaservice.entity.ConversationMember;
@@ -21,11 +18,9 @@ import com.cc.qylgjavaservice.service.ChatService;
 import com.cc.qylgjavaservice.utils.UserContext;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.redisson.api.*;
+import org.redisson.client.protocol.ScoredEntry;
 import org.thymeleaf.TemplateEngine;
-import org.redisson.api.RBucket;
-import org.redisson.api.RScoredSortedSet;
-import org.redisson.api.RScript;
-import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -58,6 +53,8 @@ public class ChatServiceImpl implements ChatService {
     private RedissonClient redissonClient;
 
     private final TemplateEngine templateEngine;
+
+    private static final double MAX_LOAD = 10.0;
 
     /**
      * 发送消息
@@ -394,6 +391,109 @@ public class ChatServiceImpl implements ChatService {
         writeHtmlToResponse(response, html, "chat_" + sessionId + ".html");
     }
 
+    @Override
+    public Result<ChatStaffVO> getStaff(int page, int pageSize, String keyword) {
+        //分页查询
+        Page<StaffVO> pageResult = userMapper.selectStaffPage(
+                new Page<>(page, pageSize),
+                keyword
+        );
+
+        List<StaffVO> staffVOS = pageResult.getRecords();
+
+        //返回对象
+        ChatStaffVO chatStaffVO = new ChatStaffVO();
+        chatStaffVO.setTotal(pageResult.getTotal());
+        chatStaffVO.setSize(pageResult.getSize());
+        chatStaffVO.setCurrent(pageResult.getCurrent());
+
+        //统计数据
+        ChatStaffVO.Stats stats = new ChatStaffVO.Stats();
+
+        //负载set
+        RScoredSortedSet<Object> zset = redissonClient.getScoredSortedSet(CS_QUEUE_KEY);
+        //可接入客服hash
+        RMap<String, String> acceptMap = redissonClient.getMap(CS_ACCEPT_STATUS_KEY);
+
+        Map<Object, Double> scoreMap = zset.entryRange(0, -1)
+                .stream()
+                .collect(Collectors.toMap(
+                        ScoredEntry::getValue,
+                        ScoredEntry::getScore
+                ));
+
+        int canAccept = 0;
+        int busy = 0;
+        int online = 0;
+        double totalLoad = 0.0;
+
+        for (StaffVO s : staffVOS) {
+            String staffId = s.getId().toString();
+            Double score = scoreMap.get(staffId);
+
+            if (score == null) {
+                // 离线
+                s.setOnlineStatus(0);
+                s.setCurrentLoad(0.0);
+                s.setCanAccept(false);
+                s.setActiveSessions(0.0);
+                continue;
+            }
+
+            // 在线
+            s.setOnlineStatus(1);
+            s.setCurrentLoad(score);
+            s.setActiveSessions(score);
+            online++;
+
+            //判断是否可以接入
+            String manualStatus = acceptMap.get(staffId);
+            boolean manualAccept = manualStatus == null || "1".equals(manualStatus);
+
+            if (!manualAccept) {
+                // 手动暂停接入
+                s.setCanAccept(false);
+            } else if (score < MAX_LOAD) {
+                s.setCanAccept(true);
+                canAccept++;
+            } else {
+                s.setCanAccept(false);
+                busy++;
+            }
+
+            totalLoad += score;
+        }
+
+        stats.setBusy(busy);
+        stats.setOnline(online);
+        stats.setCanAccept(canAccept);
+        stats.setTotalLoad(totalLoad);
+
+        chatStaffVO.setStaffVOS(staffVOS);
+        chatStaffVO.setStats(stats);
+
+        return Result.success(chatStaffVO);
+    }
+
+    @Override
+    public Result<Void> setStaffAcceptStatus(Long agentId, Boolean canAccept) {
+        RMap<String, String> acceptMap = redissonClient.getMap(CS_ACCEPT_STATUS_KEY);
+
+        //判断是否在线
+        String i = acceptMap.get(agentId.toString());
+        if (i==null){
+            return Result.fail(404,"用户未上线");
+        }
+
+        String put = String.valueOf(acceptMap.put(agentId.toString(), String.valueOf(canAccept ? 1 : 0)));
+
+        if (put.equals("1") || put.equals("0")){
+            return Result.success();
+        }
+
+        return Result.fail(500,"操作失败");
+    }
+
     //查询历史记录
     public List<ChatMessage> getHistory(Long conversationId, Long lastId) {
         QueryWrapper<ChatMessage> wrapper=new QueryWrapper<>();
@@ -540,6 +640,21 @@ public class ChatServiceImpl implements ChatService {
         return redissonClient.getBucket(CHAT_ONLINE_USER_KEY + userId).isExists();
     }
 
+
+    //修改客服可接入状态
+    public void setStaffAcceptStatus(Long staffId, boolean canAccept) {
+        RMap<String, Integer> acceptMap = redissonClient.getMap(CS_ACCEPT_STATUS_KEY);
+        acceptMap.put(staffId.toString(), canAccept ? 1 : 0);
+    }
+
+    //修改客服可接入状态
+    public boolean getStaffAcceptStatus(Long staffId) {
+        RMap<String, Integer> acceptMap = redissonClient.getMap(CS_ACCEPT_STATUS_KEY);
+        Integer status = acceptMap.get(staffId.toString());
+        // 默认没配置就是可接入
+        return status == null || status == 1;
+    }
+
     /**
      * 将 HTML 写入响应，触发浏览器下载
      */
@@ -561,10 +676,6 @@ public class ChatServiceImpl implements ChatService {
 
     /**
      * 消息内容格式化
-     * 这里只做最基础处理：
-     * 1. null 转空串
-     * 2. 换行转 <br>
-     *
      * 如果你内容里可能带 HTML 标签，建议做转义，防止标签直接渲染
      */
     private String formatContent(String content) {

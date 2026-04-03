@@ -67,6 +67,11 @@ public class ChatWebSocket {
         }
         else {
             scoredSortedSet.add(0,userId);
+
+            //客服是否接入队列
+            RMap<String, Integer> acceptMap = redissonClient.getMap(CS_ACCEPT_STATUS_KEY);
+            acceptMap.putIfAbsent(userId.toString(), 1); // 默认可接入
+
             System.out.println("客服连接：" + userId);
         }
 
@@ -177,8 +182,8 @@ public class ChatWebSocket {
     private void markUserOnline(Long userId, String sessionId) {
         RSet<String> userSessions = redissonClient.getSet(CHAT_ONLINE_SESSION_KEY + userId);
         userSessions.add(sessionId);
-        userSessions.expire(Duration.ofHours(1));
-        redissonClient.getBucket(CHAT_ONLINE_USER_KEY + userId).set(Boolean.TRUE, Duration.ofHours(1));
+        userSessions.expire(Duration.ofHours(24));
+        redissonClient.getBucket(CHAT_ONLINE_USER_KEY + userId).set(Boolean.TRUE, Duration.ofHours(24));
     }
 
     private void markUserOffline(Long userId, String sessionId) {

@@ -3,6 +3,7 @@ package com.cc.qylgjavaservice.controller;
 import com.cc.qylgjavaservice.dto.chatDTO.ChatSessionVO;
 import com.cc.qylgjavaservice.dto.Result;
 import com.cc.qylgjavaservice.dto.chatDTO.ChatSessionsListVO;
+import com.cc.qylgjavaservice.dto.chatDTO.ChatStaffVO;
 import com.cc.qylgjavaservice.service.ChatService;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletResponse;
@@ -35,4 +36,18 @@ public class ChatController {
                                    HttpServletResponse response){
         chatService.exportHtml(response,sessionId);
     }
+
+    @GetMapping("/service/staff")
+    public Result<ChatStaffVO> getStaff(@RequestParam(value = "page",defaultValue = "1") int page ,
+                                        @RequestParam(value = "pageSize",defaultValue = "10") int pageSize,
+                                        @RequestParam(required = false) String keyword){
+        return chatService.getStaff(page,pageSize,keyword);
+    }
+
+    @PatchMapping("/service/staff/{agentId}/availability")
+    public Result<Void> updateAcceptStatus(@PathVariable Long agentId,
+                                           @RequestParam Boolean canAccept) {
+        return chatService.setStaffAcceptStatus(agentId, canAccept);
+    }
+
 }

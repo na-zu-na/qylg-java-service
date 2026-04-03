@@ -2,6 +2,7 @@ package com.cc.qylgjavaservice.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.cc.qylgjavaservice.dto.chatDTO.StaffVO;
 import com.cc.qylgjavaservice.dto.userDTO.AdminAccountListVO;
 import com.cc.qylgjavaservice.dto.userDTO.AdminUserListDTO;
 import com.cc.qylgjavaservice.entity.Users;
@@ -36,4 +37,6 @@ public interface UserMapper extends BaseMapper<Users> {
     FROM users
 """)
     AdminAccountListVO.Stats selectAccountStats();
+
+    Page<StaffVO> selectStaffPage(Page<Object> objectPage, String keyword);
 }

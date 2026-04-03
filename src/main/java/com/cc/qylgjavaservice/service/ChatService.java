@@ -3,6 +3,7 @@ package com.cc.qylgjavaservice.service;
 import com.cc.qylgjavaservice.dto.chatDTO.ChatSessionVO;
 import com.cc.qylgjavaservice.dto.Result;
 import com.cc.qylgjavaservice.dto.chatDTO.ChatSessionsListVO;
+import com.cc.qylgjavaservice.dto.chatDTO.ChatStaffVO;
 import com.cc.qylgjavaservice.entity.ChatMessage;
 import jakarta.servlet.http.HttpServletResponse;
 
@@ -19,4 +20,8 @@ public interface ChatService {
     Result<ChatSessionsListVO> getSessionsList(int page, int pageSize, Integer status, String keyword);
 
     void exportHtml(HttpServletResponse response, Long sessionId);
+
+    Result<ChatStaffVO> getStaff(int page, int pageSize, String keyword);
+
+    Result<Void> setStaffAcceptStatus(Long agentId, Boolean canAccept);
 }

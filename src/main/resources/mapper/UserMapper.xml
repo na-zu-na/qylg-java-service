@@ -52,4 +52,26 @@
         </where>
         order by created_at desc
     </select>
+
+    <select id="selectStaffPage" resultType="com.cc.qylgjavaservice.dto.chatDTO.StaffVO">
+        SELECT
+        u.id,
+        COALESCE(u.user_name, u.nick_name, u.phone, CAST(u.id AS text)) AS userName,
+        u.role_code AS role
+        FROM users u
+        <where>
+            u.status = 0
+            AND u.role_code IN (0, 1)
+
+            <if test="keyword != null and keyword != ''">
+                AND (
+                u.user_name ILIKE CONCAT('%', #{keyword}, '%')
+                OR u.nick_name ILIKE CONCAT('%', #{keyword}, '%')
+                OR u.phone ILIKE CONCAT('%', #{keyword}, '%')
+                OR CAST(u.id AS TEXT)=#{keyword}
+                )
+            </if>
+        </where>
+        ORDER BY u.id DESC
+    </select>
 </mapper>

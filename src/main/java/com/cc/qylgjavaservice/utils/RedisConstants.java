@@ -16,4 +16,5 @@ public class RedisConstants {
     public static final String CHAT_ONLINE_SESSION_KEY = "im:online:session:";
     public static final String ACK_RETRY_QUEUE = "im:ack:retry_queue";
     public static final String ACK_RETRY_COUNT = "im:ack:retry_count:";
+    public static final String CS_ACCEPT_STATUS_KEY = "cs:accept:status";
 }
