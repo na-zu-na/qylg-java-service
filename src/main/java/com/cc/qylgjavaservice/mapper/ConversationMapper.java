@@ -3,6 +3,7 @@ package com.cc.qylgjavaservice.mapper;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.cc.qylgjavaservice.dto.chatDTO.SessionDTO;
+import com.cc.qylgjavaservice.dto.chatDTO.SessionUserCsDTO;
 import com.cc.qylgjavaservice.entity.Conversation;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -21,5 +22,5 @@ public interface ConversationMapper extends BaseMapper<Conversation> {
                                        @Param("offlineUserIds") List<Long> offlineUserIds,
                                        @Param("includeNullUser") boolean includeNullUser);
 
-    List<Long> selectSessionUserIds(@Param("keyword") String keyword);
+    List<SessionUserCsDTO> selectSessionUserCs(@Param("keyword") String keyword);
 }

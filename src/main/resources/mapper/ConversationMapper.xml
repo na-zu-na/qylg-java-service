@@ -79,7 +79,7 @@
                     <when test="status == 1">
                         <choose>
                             <when test="onlineUserIds != null and onlineUserIds.size() > 0">
-                                AND client_user.id IN
+                                AND c.id IN
                                 <foreach collection="onlineUserIds" item="userId" open="(" separator="," close=")">
                                     #{userId}
                                 </foreach>
@@ -93,21 +93,21 @@
                         <choose>
                             <when test="offlineUserIds != null and offlineUserIds.size() > 0 and includeNullUser">
                                 AND (
-                                client_user.id IN
+                                c.id IN
                                 <foreach collection="offlineUserIds" item="userId" open="(" separator="," close=")">
                                     #{userId}
                                 </foreach>
-                                OR client_user.id IS NULL
+                                OR c.id IS NULL
                                 )
                             </when>
                             <when test="offlineUserIds != null and offlineUserIds.size() > 0">
-                                AND client_user.id IN
+                                AND c.id IN
                                 <foreach collection="offlineUserIds" item="userId" open="(" separator="," close=")">
                                     #{userId}
                                 </foreach>
                             </when>
                             <when test="includeNullUser">
-                                AND client_user.id IS NULL
+                                AND c.id IS NULL
                             </when>
                             <otherwise>
                                 AND 1 = 0
@@ -120,8 +120,11 @@
         ORDER BY c.last_message_time DESC NULLS LAST, c.id DESC
     </select>
 
-    <select id="selectSessionUserIds" resultType="java.lang.Long">
-        SELECT client_user.id
+    <select id="selectSessionUserCs" resultType="com.cc.qylgjavaservice.dto.chatDTO.SessionUserCsDTO">
+        SELECT
+        client_user.id AS userId,
+        c.current_cs_id AS currentCsId,
+        c.id
         FROM conversations c
         LEFT JOIN users cs ON cs.id = c.current_cs_id
         LEFT JOIN (

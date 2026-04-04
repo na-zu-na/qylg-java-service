@@ -3,17 +3,12 @@ package com.cc.qylgjavaservice.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.cc.qylgjavaservice.dto.OrderDTO.CustomOrderListDTO;
 import com.cc.qylgjavaservice.dto.chatDTO.*;
 import com.cc.qylgjavaservice.dto.Result;
-import com.cc.qylgjavaservice.entity.ChatMessage;
-import com.cc.qylgjavaservice.entity.Conversation;
-import com.cc.qylgjavaservice.entity.ConversationMember;
-import com.cc.qylgjavaservice.entity.Users;
+import com.cc.qylgjavaservice.entity.*;
 import com.cc.qylgjavaservice.enums.UserRole;
-import com.cc.qylgjavaservice.mapper.ChatMessageMapper;
-import com.cc.qylgjavaservice.mapper.ConversationMapper;
-import com.cc.qylgjavaservice.mapper.ConversationMemberMapper;
-import com.cc.qylgjavaservice.mapper.UserMapper;
+import com.cc.qylgjavaservice.mapper.*;
 import com.cc.qylgjavaservice.service.ChatService;
 import com.cc.qylgjavaservice.utils.UserContext;
 import jakarta.servlet.http.HttpServletResponse;
@@ -51,6 +46,8 @@ public class ChatServiceImpl implements ChatService {
     private UserMapper userMapper;
     @Autowired
     private RedissonClient redissonClient;
+    @Autowired
+    private CustomOrderMapper customOrderMapper;
 
     private final TemplateEngine templateEngine;
 
@@ -128,16 +125,19 @@ public class ChatServiceImpl implements ChatService {
         } else {
             String lua="local res=redis.call('ZSCORE',KEYS[1],ARGV[1]);" +
                     "if not res then return 1 end;" +
-                    "if tonumber(res) >= 10 then return 1 end;" +
-                    "redis.call('ZINCRBY',KEYS[1],1,ARGV[1])" +
-                    "redis.call('HSET',KEYS[2],ARGV[2],ARGV[1])" +
+                    "local manualStatus = redis.call('HGET', KEYS[3], ARGV[1]);" +
+                    "if manualStatus == '0' then return 1 end;" +
+                    "if tonumber(res) >= tonumber(ARGV[3]) then return 1 end;" +
+                    "redis.call('ZINCRBY',KEYS[1],1,ARGV[1]);" +
+                    "redis.call('HSET',KEYS[2],ARGV[2],ARGV[1]);" +
                     "return 0";
 
-            Object[] value={receiverId,senderId};
+            Object[] value={receiverId,senderId,MAX_LOAD};
 
             List<Object> list=new ArrayList<>();
             list.add(CS_QUEUE_KEY);
             list.add(CUSTOMER_SERVICE);
+            list.add(CS_ACCEPT_STATUS_KEY);
 
             RScript script = redissonClient.getScript();
             Object result = script.eval(
@@ -257,62 +257,87 @@ public class ChatServiceImpl implements ChatService {
     @Override
     public Result<ChatSessionsListVO> getSessionsList(int page, int pageSize, Integer status, String keyword) {
 
-        // 页码、分页大小兜底
+        // 防止非法分页参数
         int safePage = Math.max(page, 1);
         int safePageSize = Math.max(pageSize, 1);
 
-        // 查所有会话对应的用户ID（用于统计在线/离线）
-        List<Long> sessionUserIds = conversationMapper.selectSessionUserIds(keyword);
-        if (sessionUserIds == null || sessionUserIds.isEmpty()) {
+        // 根据关键字查询所有会话用户ID（用于统计 + 分组）
+        List<SessionUserCsDTO> sessionUserCs = conversationMapper.selectSessionUserCs(keyword);
+        if (sessionUserCs == null || sessionUserCs.isEmpty()) {
+            // 没有数据直接返回空结果
             return Result.success(emptySessionList(safePage, safePageSize));
         }
 
-        // 统计在线 / 离线用户
+        // Redis中：当前“正在服务中的用户”（用户->客服绑定关系）
+        RMap<String, String> csMap = redissonClient.getMap(CUSTOMER_SERVICE);
+
+        // 转成Long集合，作为“在线会话用户”
+        Set<Long> activeUserIds = csMap.readAllKeySet().stream()
+                .map(this::safeParseLong)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        // 统计数据
         long onlineCount = 0L;
         long nullUserCount = 0L;
-        Set<Long> onlineUserIds = new HashSet<>();
-        Set<Long> offlineUserIds = new HashSet<>();
 
-        for (Long userId : sessionUserIds) {
+        // 用于区分在线 / 历史会话（给SQL用）
+        Set<Long> onlineConversationIds = new HashSet<>();
+        Set<Long> offlineConversationIds = new HashSet<>();
+
+        // 遍历所有会话用户，区分在线和离线
+        for (SessionUserCsDTO sessionUserCsDTO : sessionUserCs) {
+            Long userId=sessionUserCsDTO.getUserId();
             if (userId == null) {
+                // 有些异常数据（userId为空），单独统计
                 nullUserCount++;
                 continue;
             }
-            if (isUserOnline(userId)) {
-                onlineCount++;
-                onlineUserIds.add(userId);
+            if (activeUserIds.contains(userId)) {
+                //判断是否同时在线
+                String s = csMap.get(userId.toString());
+                if (Objects.equals(sessionUserCsDTO.getCurrentCsId(), safeParseLong(s)) && isUserOnline(safeParseLong(s))){
+                    onlineCount++;
+                    onlineConversationIds.add(sessionUserCsDTO.getId());
+                } else {
+                    nullUserCount++;
+                    offlineConversationIds.add(sessionUserCsDTO.getId());
+                }
             } else {
-                offlineUserIds.add(userId);
+                offlineConversationIds.add(sessionUserCsDTO.getId());
             }
         }
 
-        long totalCount = sessionUserIds.size();      // 总数
-        long historyCount = totalCount - onlineCount; // 离线数
+        // 总会话数
+        long totalCount = sessionUserCs.size();
+        // 历史会话数（不在线的）
+        long historyCount = totalCount - onlineCount;
 
-        // 查分页会话列表
+        // 分页查询会话列表（带在线/离线过滤）
         Page<SessionDTO> sessionPage = conversationMapper.selectSessionPage(
                 new Page<>(safePage, safePageSize),
                 keyword,
                 status,
-                new ArrayList<>(onlineUserIds),
-                new ArrayList<>(offlineUserIds),
-                nullUserCount > 0
+                new ArrayList<>(onlineConversationIds),   // 在线会话
+                new ArrayList<>(offlineConversationIds),  // 离线会话
+                nullUserCount > 0                 // 是否包含空用户
         );
 
-        // 给每条会话标记是否在线
         List<SessionDTO> records = sessionPage.getRecords();
+
+        // 给每条记录打上“是否在线”标记（前端用）
         for (SessionDTO record : records) {
-            record.setOnline(isUserOnline(record.getUserId()));
+            record.setOnline(onlineConversationIds.contains(safeParseLong(record.getId())));
         }
 
-        // 封装返回数据
+        // 组装返回VO
         ChatSessionsListVO vo = new ChatSessionsListVO();
         vo.setConversations(records);
         vo.setCurrent((long) safePage);
         vo.setSize((long) safePageSize);
         vo.setTotal(sessionPage.getTotal());
 
-        // 统计信息
+        // 统计信息（总数 / 在线 / 历史）
         ChatSessionsListVO.Stats stats = new ChatSessionsListVO.Stats();
         stats.setTotal(totalCount);
         stats.setOnLine(onlineCount);
@@ -494,6 +519,48 @@ public class ChatServiceImpl implements ChatService {
         return Result.fail(500,"操作失败");
     }
 
+    @Override
+    public Result<List<ChatMySessions>> getWorkBench() {
+        Long currentUserId = UserContext.getCurrentUserId();
+        // Redis中：当前“正在服务中的用户”（用户->客服绑定关系）
+        RMap<String, String> csMap = redissonClient.getMap(CUSTOMER_SERVICE);
+        // 转成Long集合，作为“在线会话用户”
+        Set<Long> activeUserIds = csMap.readAllKeySet().stream()
+                .map(this::safeParseLong)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        //查基本信息
+        List<ChatMySessions> chatMySessions=conversationMemberMapper.selectMySessions(currentUserId);
+        if (chatMySessions.isEmpty()){
+            chatMySessions=Collections.emptyList();
+            return Result.success(chatMySessions);
+        }
+
+        //查订单信息
+        List<Long> list = chatMySessions.stream().map(ChatMySessions::getOrderId).toList();
+        List<CustomOrderListDTO> customOrders = customOrderMapper.selectByOrderIds(list);
+        Map<Long,CustomOrderListDTO> map=customOrders.stream()
+                .collect(Collectors.toMap(CustomOrderListDTO::getId,Function.identity()));
+
+        for (ChatMySessions c : chatMySessions){
+            //判断是否在线
+            if (activeUserIds.contains(c.getUserId())){
+                c.setOnlineStatus(1);
+            } else {
+                c.setOnlineStatus(0);
+            }
+
+            //组合订单
+            if (c.getOrderId()!=null){
+                c.setCustomOrderListDTO(map.get(c.getOrderId()));
+            }
+        }
+
+
+        return Result.success(chatMySessions);
+    }
+
     //查询历史记录
     public List<ChatMessage> getHistory(Long conversationId, Long lastId) {
         QueryWrapper<ChatMessage> wrapper=new QueryWrapper<>();
@@ -516,17 +583,25 @@ public class ChatServiceImpl implements ChatService {
 
         // Lua脚本（原子执行）
         String scriptContent=
-                "local res = redis.call('ZRANGE', KEYS[1], 0, 0); " +
-                        "if #res == 0 then return nil end; " +
-                        "local csId = res[1]; " +
-                        "redis.call('HSET',KEYS[2],ARGV[1],csId)"+
+                "local candidates = redis.call('ZRANGE', KEYS[1], 0, -1); " +
+                        "if #candidates == 0 then return nil end; " +
+                        "for i = 1, #candidates do " +
+                        "local csId = candidates[i]; " +
+                        "local load = redis.call('ZSCORE', KEYS[1], csId); " +
+                        "local manualStatus = redis.call('HGET', KEYS[3], csId); " +
+                        "if load and tonumber(load) < tonumber(ARGV[2]) and manualStatus ~= '0' then " +
+                        "redis.call('HSET', KEYS[2], ARGV[1], csId); " +
                         "redis.call('ZINCRBY', KEYS[1], 1, csId); " +
-                        "return csId;";
+                        "return csId; " +
+                        "end; " +
+                        "end; " +
+                        "return nil;";
 
         List<Object> list=new ArrayList<>();
         list.add(CS_QUEUE_KEY);
         list.add(CUSTOMER_SERVICE);
-        Object[] values = { senderId };
+        list.add(CS_ACCEPT_STATUS_KEY);
+        Object[] values = { senderId, MAX_LOAD };
 
         // 4. 执行脚本
         Object result = script.eval(
@@ -633,6 +708,16 @@ public class ChatServiceImpl implements ChatService {
         return vo;
     }
 
+    private Long safeParseLong(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return Long.valueOf(value);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
     private boolean isUserOnline(Long userId) {
         if (userId == null) {
             return false;

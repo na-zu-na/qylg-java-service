@@ -6,7 +6,10 @@ import com.cc.qylgjavaservice.dto.OrderDTO.AdminCustomOrderListVO;
 import com.cc.qylgjavaservice.dto.OrderDTO.CustomOrderListDTO;
 import com.cc.qylgjavaservice.entity.CustomOrder;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+
+import java.util.List;
 
 @Mapper
 public interface CustomOrderMapper extends BaseMapper<CustomOrder> {
@@ -25,4 +28,6 @@ public interface CustomOrderMapper extends BaseMapper<CustomOrder> {
     AdminCustomOrderListVO.Stats selectStats();
 
     CustomOrderListDTO selectAdminCustomOrderDetail(Long customOrderId);
+
+    List<CustomOrderListDTO> selectByOrderIds(@Param("list") List<Long> list);
 }

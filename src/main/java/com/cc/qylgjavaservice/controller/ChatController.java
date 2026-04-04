@@ -1,13 +1,13 @@
 package com.cc.qylgjavaservice.controller;
 
-import com.cc.qylgjavaservice.dto.chatDTO.ChatSessionVO;
+import com.cc.qylgjavaservice.dto.chatDTO.*;
 import com.cc.qylgjavaservice.dto.Result;
-import com.cc.qylgjavaservice.dto.chatDTO.ChatSessionsListVO;
-import com.cc.qylgjavaservice.dto.chatDTO.ChatStaffVO;
 import com.cc.qylgjavaservice.service.ChatService;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/chat")
@@ -48,6 +48,11 @@ public class ChatController {
     public Result<Void> updateAcceptStatus(@PathVariable Long agentId,
                                            @RequestParam Boolean canAccept) {
         return chatService.setStaffAcceptStatus(agentId, canAccept);
+    }
+
+    @GetMapping("/service/workbench")
+    public Result<List<ChatMySessions>> getWorkBench(){
+        return chatService.getWorkBench();
     }
 
 }

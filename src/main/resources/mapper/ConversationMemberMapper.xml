@@ -1,6 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.cc.qylgjavaservice.mapper.ConversationMemberMapper">
+    <resultMap id="ChatMySessionsMap" type="com.cc.qylgjavaservice.dto.chatDTO.ChatMySessions">
+        <id property="id" column="id"/>
+        <result property="userId" column="userId"/>
+        <result property="userName" column="userName"/>
+        <result property="lastMessageTime" column="lastMessageTime"/>
+        <result property="createdAt" column="createdAt"/>
+        <result property="lastMessage" column="lastMessage"/>
+        <result property="orderId" column="orderId"/>
+        <result property="currentCsId" column="currentCsId"/>
+        <result property="currentCsName" column="currentCsName"/>
+    </resultMap>
+
     <select id="getConversationSessionsByUserId" resultType="com.cc.qylgjavaservice.dto.chatDTO.ConversationSessionsDTO">
         select
             c.conversation_id as id,
@@ -15,4 +27,27 @@
         group by c.conversation_id
     </select>
 
+    <select id="selectMySessions" resultMap="ChatMySessionsMap">
+        SELECT DISTINCT ON (c.id)
+            c.id,
+            cm_user.user_id AS userId,
+            COALESCE(u.nick_name, u.user_name, CAST(u.id AS text)) AS userName,
+            c.last_message_time AS lastMessageTime,
+            c.created_at AS createdAt,
+            c.last_message AS lastMessage,
+            c.order_id AS orderId,
+            cm_cs.user_id AS currentCsId,
+            COALESCE(cs.nick_name, cs.user_name, CAST(cs.id AS text)) AS currentCsName
+        FROM conversation_members cm_cs
+                 INNER JOIN conversations c ON cm_cs.conversation_id = c.id
+                 INNER JOIN conversation_members cm_user
+                            ON cm_user.conversation_id = c.id
+                                AND cm_user.user_id != cm_cs.user_id
+                 LEFT JOIN users u ON cm_user.user_id = u.id
+                 LEFT JOIN users cs ON cm_cs.user_id = cs.id
+        WHERE cm_cs.user_id = #{currentUserId}
+
+        -- ⚠️ 关键：先按 c.id 分组，再按时间倒序
+        ORDER BY c.id, c.last_message_time DESC
+    </select>
 </mapper>

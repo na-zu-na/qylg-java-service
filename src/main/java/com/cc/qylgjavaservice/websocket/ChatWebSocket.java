@@ -86,7 +86,6 @@ public class ChatWebSocket {
 
         UserSessionManager.remove(userId, session);
         markUserOffline(userId, session.getId());
-        RScoredSortedSet<Long> scoredSortedSet = redissonClient.getScoredSortedSet(CS_QUEUE_KEY);
         Users users = userMapper.selectById(userId);
         UserRole roleCode = users.getRoleCode();
 
@@ -94,7 +93,8 @@ public class ChatWebSocket {
             String lua =
                     "local csId = redis.call('HGET', KEYS[2], ARGV[1]); " +
                             "if not csId then return 0 end; " +
-                            "redis.call('ZINCRBY', KEYS[1], -1, csId); " +
+                            "local score = redis.call('ZSCORE', KEYS[1], csId); " +
+                            "if score then redis.call('ZINCRBY', KEYS[1], -1, csId); end; " +
                             "redis.call('HDEL', KEYS[2], ARGV[1]); " +
                             "return 1;";
 
@@ -109,7 +109,7 @@ public class ChatWebSocket {
                 script.eval(
                         RScript.Mode.READ_WRITE,
                         lua,
-                        RScript.ReturnType.VALUE, // 建议改为 INTEGER，因为返回的是 0 或 1
+                        RScript.ReturnType.VALUE,
                         keys,
                         values
                 );
@@ -118,11 +118,37 @@ public class ChatWebSocket {
                 System.err.println("用户离线处理失败：" + e.getMessage());
             }
 
-
-            System.out.println("用户离线：" + userId);
+            System.out.println("user offline: " + userId);
         }
         else {
-            scoredSortedSet.remove(userId);
+            String lua =
+                    "redis.call('ZREM', KEYS[1], ARGV[1]); " +
+                            "local all = redis.call('HGETALL', KEYS[2]); " +
+                            "for i = 1, #all, 2 do " +
+                            "local userKey = all[i]; " +
+                            "local csId = all[i + 1]; " +
+                            "if csId == ARGV[1] then redis.call('HDEL', KEYS[2], userKey); end; " +
+                            "end; " +
+                            "return 1;";
+
+            List<Object> keys = new ArrayList<>();
+            keys.add(CS_QUEUE_KEY);
+            keys.add(CUSTOMER_SERVICE);
+
+            Object[] values = { String.valueOf(userId) };
+
+            try {
+                RScript script = redissonClient.getScript();
+                script.eval(
+                        RScript.Mode.READ_WRITE,
+                        lua,
+                        RScript.ReturnType.VALUE,
+                        keys,
+                        values
+                );
+            } catch (Exception e) {
+                System.err.println("客服离线处理失败：" + e.getMessage());
+            }
             System.out.println("客服离线：" + userId);
         }
     }

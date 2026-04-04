@@ -135,4 +135,41 @@
         left join users as u_u on u_u.id=co.user_id
         where co.id=#{customOrderId}
     </select>
+
+    <select id="selectByOrderIds" resultMap="CustomOrderListDTO">
+        select
+        co.id,
+        p.id as productId,
+        p.title,
+        co.order_no,
+        co.purpose,
+        co.style,
+        co.status,
+        co.material,
+        co.min_budget,
+        co.max_budget,
+        co.size,
+        co.remark,
+        co.colors as colorOptions,
+        co.patterns as patternOptions,
+        co.images,
+        co.created_at,
+        co.is_confirmed,
+        co.quote,
+        co.proposal_image,
+        co.worker_id,
+        co.quote_time,
+        u.nick_name as workerName,
+        u_u.id as userId,
+        u_u.nick_name as userName,
+        co.proposal_time
+        from custom_orders as co
+        left join products as p on co.product_id = p.id
+        left join users as u on co.worker_id = u.id
+        left join users as u_u on u_u.id = co.user_id
+        where co.id in
+        <foreach collection="list" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
 </mapper>
