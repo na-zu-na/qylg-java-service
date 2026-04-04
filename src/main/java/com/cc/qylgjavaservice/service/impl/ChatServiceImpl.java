@@ -121,6 +121,8 @@ public class ChatServiceImpl implements ChatService {
             Long l = allocateCustomerService(senderId);
             if (l!=null){
                 receiverId=l;
+            } else{
+                return Result.fail(503,"暂无可用客服");
             }
         } else {
             String lua="local res=redis.call('ZSCORE',KEYS[1],ARGV[1]);" +
@@ -185,9 +187,7 @@ public class ChatServiceImpl implements ChatService {
             if (orderId != null) {
                 newConversation.setOrderId(orderId);
             }
-            if (receiverId!=null){
-                newConversation.setCurrentCsId(receiverId);
-            }
+            newConversation.setCurrentCsId(receiverId);
             newConversation.setLastMessageTime(LocalDateTime.now());
             // 新会话暂无最后消息内容，可留空或设为"会话已创建"
 
@@ -672,7 +672,13 @@ public class ChatServiceImpl implements ChatService {
         );
 
         Users users = userMapper.selectById(userId);
-        UserRole role=users.getRoleCode();
+
+        //默认分配为user
+        UserRole role=UserRole.USER;
+        if (users!=null){
+            role=users.getRoleCode();
+        }
+
 
         if (existing == null) {
             ConversationMember member = new ConversationMember();
@@ -723,21 +729,6 @@ public class ChatServiceImpl implements ChatService {
             return false;
         }
         return redissonClient.getBucket(CHAT_ONLINE_USER_KEY + userId).isExists();
-    }
-
-
-    //修改客服可接入状态
-    public void setStaffAcceptStatus(Long staffId, boolean canAccept) {
-        RMap<String, Integer> acceptMap = redissonClient.getMap(CS_ACCEPT_STATUS_KEY);
-        acceptMap.put(staffId.toString(), canAccept ? 1 : 0);
-    }
-
-    //修改客服可接入状态
-    public boolean getStaffAcceptStatus(Long staffId) {
-        RMap<String, Integer> acceptMap = redissonClient.getMap(CS_ACCEPT_STATUS_KEY);
-        Integer status = acceptMap.get(staffId.toString());
-        // 默认没配置就是可接入
-        return status == null || status == 1;
     }
 
     /**
