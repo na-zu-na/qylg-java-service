@@ -452,6 +452,18 @@ public class UserServiceImpl extends ServiceImpl<UserMapper,Users> implements Us
         return Result.success();
     }
 
+    @Override
+    public Result<Void> adminLogout() {
+        String token = UserContext.getToken();
+        //删掉redis token
+        RBucket<Object> redisBucket = redissonClient.getBucket(ADMIN_TOKEN_KEY + token);
+        if (redisBucket.isExists()){
+            redisBucket.delete();
+        }
+
+        return Result.success();
+    }
+
     private boolean checkAuth(){
         Long currentUserId = UserContext.getCurrentUserId();
         Users users = userMapper.selectById(currentUserId);

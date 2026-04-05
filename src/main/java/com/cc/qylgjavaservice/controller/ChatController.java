@@ -15,12 +15,14 @@ public class ChatController {
     @Resource
     private ChatService chatService;
 
-    @GetMapping("/init")
-    public Result<ChatSessionVO> initSession(@RequestParam(required = false) Long senderId,
-                                             @RequestParam(required = false) Long receiverId,
-                                             @RequestParam(required = false) Long orderId) throws Exception {
+    @GetMapping("/session")
+    public Result<ChatSessionVO> getSession(Long senderId, Long receiverId, Long orderId) {
+        return chatService.getSession(senderId, receiverId, orderId);
+    }
 
-        return chatService.getOrCreateSession(senderId,receiverId,orderId);
+    @PostMapping("/session/create")
+    public Result<ChatSessionVO> createSession(@RequestBody ChatInitDTO dto) throws Exception {
+        return chatService.createSession(dto.getSenderId(), dto.getReceiverId(), dto.getOrderId());
     }
 
     @GetMapping("/service/sessions")

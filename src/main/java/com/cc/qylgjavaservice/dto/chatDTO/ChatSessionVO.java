@@ -8,7 +8,7 @@ import java.util.List;
 
 @Data
 public class ChatSessionVO {
-    private String ConversationId;
+    private String conversationId;
     private List<ChatMessage> messages;
     private Users TargetUserInfo;
     private Long receiverId;

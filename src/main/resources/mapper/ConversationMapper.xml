@@ -141,4 +141,16 @@
         ORDER BY c.last_message_time DESC NULLS LAST, c.id DESC
     </select>
 
+    <select id="findLatestConversationIdBySender" resultType="java.lang.Long">
+        SELECT c.id
+        FROM conversations c
+        INNER JOIN conversation_members cm ON cm.conversation_id = c.id
+        WHERE cm.user_id = #{senderId}
+        AND c.type = 1
+        <if test="orderId != null">
+            AND c.order_id = #{orderId}
+        </if>
+        ORDER BY c.last_message_time DESC, c.id DESC
+        LIMIT 1
+    </select>
 </mapper>

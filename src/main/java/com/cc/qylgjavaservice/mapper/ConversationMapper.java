@@ -23,4 +23,7 @@ public interface ConversationMapper extends BaseMapper<Conversation> {
                                        @Param("includeNullUser") boolean includeNullUser);
 
     List<SessionUserCsDTO> selectSessionUserCs(@Param("keyword") String keyword);
+
+    Long findLatestConversationIdBySender(@Param("senderId") Long senderId,
+                                          @Param("orderId") Long orderId);
 }

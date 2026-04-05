@@ -80,4 +80,9 @@ public class UserController {
     public Result<Void> deleteAccount(@PathVariable Long accountId){
         return userService.deleteAccount(accountId);
     }
+
+    @PostMapping("/admin/logout")
+    public Result<Void> adminLogout(){
+        return userService.adminLogout();
+    }
 }

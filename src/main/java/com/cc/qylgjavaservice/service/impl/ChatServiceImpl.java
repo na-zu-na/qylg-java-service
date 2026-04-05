@@ -58,166 +58,124 @@ public class ChatServiceImpl implements ChatService {
      */
     @Transactional
     @Override
-    public ChatMessage sendMessage(ChatMessage message) {
+    public ChatMessage sendMessage(ChatMessage message) throws Exception {
         message.setCreatedAt(LocalDateTime.now());
+        RMap<String, String> acceptMap = redissonClient.getMap(CS_ACCEPT_STATUS_KEY);
 
-        Conversation conversation = conversationMapper.selectById(message.getConversationId());
+        //查询是否是客服
+        String i = acceptMap.get(message.getSenderId().toString());
 
-        //更新会话的最后消息
-        if (conversation!=null){
-            conversation.setLastMessage(message.getContent());
-            conversation.setLastMessageTime(LocalDateTime.now());
-
-            conversationMapper.updateById(conversation);
-        }
-        else {
-            Conversation newConversation=new Conversation();
-            newConversation.setType(1);
-            newConversation.setLastMessage(message.getContent());
-            newConversation.setLastMessageTime(LocalDateTime.now());
-
-            conversationMapper.insert(newConversation);
-            Long id = newConversation.getId();
-            message.setConversationId(id);
+        //确保会话存在
+        Conversation conversation = ensureConversationExists(message,i);
+        //确保可以占用客服
+        if (i==null){
+            ensureCustomerServiceOccupied(conversation, message);
         }
 
-        ConversationMember conversationMember = conversationMemberMapper.selectOne(new LambdaQueryWrapper<ConversationMember>()
-                                                                                    .eq(ConversationMember::getUser_id, message.getSenderId())
-                                                                                    .eq(ConversationMember::getConversation_id, message.getConversationId()));
+        conversation.setLastMessage(message.getContent());
+        conversation.setLastMessageTime(LocalDateTime.now());
+        conversationMapper.updateById(conversation);
 
-        //创建会话成员表
-        if (conversationMember==null){
-            Long senderId = message.getSenderId();
-            Users users = userMapper.selectById(senderId);
-            UserRole userRole=users.getRoleCode();
-
-            conversationMember=new ConversationMember();
-            conversationMember.setUser_id(senderId);
-            conversationMember.setConversation_id(message.getConversationId());
-            if (userRole==UserRole.WORKER){
-                conversationMember.setRole(1);
-            } else if (userRole==UserRole.ADMIN) {
-                conversationMember.setRole(0);
-            }
-            else conversationMember.setRole(2);
-            conversationMemberMapper.insert(conversationMember);
+        insertMemberIfNotExists(message.getConversationId(), message.getSenderId());
+        if (message.getReceiverId() != null) {
+            insertMemberIfNotExists(message.getConversationId(), message.getReceiverId());
         }
 
-        //保存消息
         chatMessageMapper.insert(message);
-
-        message.setId(message.getId());
-
         return message;
     }
 
     @Override
-    public Result<ChatSessionVO> getOrCreateSession(Long senderId,Long receiverId, Long orderId) throws Exception {
-        Long currentUserId = UserContext.getCurrentUserId();
+    public Result<ChatSessionVO> getSession(Long senderId, Long receiverId, Long orderId) {
         Long conversationId = null;
 
-        //分配客服
-        if (receiverId==null){
-            Long l = allocateCustomerService(senderId);
-            if (l!=null){
-                receiverId=l;
-            } else{
-                return Result.fail(503,"暂无可用客服");
-            }
-        } else {
-            String lua="local res=redis.call('ZSCORE',KEYS[1],ARGV[1]);" +
-                    "if not res then return 1 end;" +
-                    "local manualStatus = redis.call('HGET', KEYS[3], ARGV[1]);" +
-                    "if manualStatus == '0' then return 1 end;" +
-                    "if tonumber(res) >= tonumber(ARGV[3]) then return 1 end;" +
-                    "redis.call('ZINCRBY',KEYS[1],1,ARGV[1]);" +
-                    "redis.call('HSET',KEYS[2],ARGV[2],ARGV[1]);" +
-                    "return 0";
-
-            Object[] value={receiverId,senderId,MAX_LOAD};
-
-            List<Object> list=new ArrayList<>();
-            list.add(CS_QUEUE_KEY);
-            list.add(CUSTOMER_SERVICE);
-            list.add(CS_ACCEPT_STATUS_KEY);
-
-            RScript script = redissonClient.getScript();
-            Object result = script.eval(
-                    RScript.Mode.READ_WRITE,
-                    lua,
-                    RScript.ReturnType.VALUE,
-                    list,
-                    value
-            );
-            int code = 0;
-            if (result instanceof Integer) {
-                code = (Integer) result;
-            } else if (result instanceof Long) {
-                code = ((Long) result).intValue();
-            }
-            if (code == 1) {
-                conversationId = findExistingConversationId(senderId, receiverId);
-
-                Long l=allocateCustomerService(senderId);
-                if (l!=null){
-                    receiverId=l;
-                    initConversationMembers(conversationId, senderId, receiverId);
-
-                    Conversation conv = new Conversation();
-                    conv.setId(conversationId);
-                    conv.setCurrentCsId(receiverId); // 显式更新当前客服为 C
-                    conv.setLastMessageTime(LocalDateTime.now());
-                    conversationMapper.updateById(conv);
-                }
-                else {
-                    return Result.fail(503,"暂无可用客服");
-                }
-            }
-        }
-
-        if (conversationId==null){
+        // 优先按 senderId + receiverId 查询
+        if (receiverId != null) {
             conversationId = findExistingConversationId(senderId, receiverId);
         }
+        //else {
+            // 如果前端没传 receiverId，则查该用户最近会话
+            //conversationId = conversationMapper.findLatestConversationIdBySender(senderId, orderId);
+        //}
 
+        ChatSessionVO vo = new ChatSessionVO();
+
+        // 查不到就返回空，不创建
+        if (conversationId == null) {
+            vo.setConversationId(null);
+            vo.setMessages(Collections.emptyList());
+            vo.setReceiverId(receiverId);
+            return Result.success(vo);
+        }
+
+        Conversation conversation = conversationMapper.selectById(conversationId);
+        List<ChatMessage> historyMessages = getHistory(conversationId, null);
+        Users users = userMapper.selectById(conversation != null ? conversation.getCurrentCsId() : receiverId);
+
+        vo.setConversationId(String.valueOf(conversationId));
+        vo.setMessages(historyMessages);
+        vo.setReceiverId(conversation != null ? conversation.getCurrentCsId() : receiverId);
+        vo.setTargetUserInfo(users);
+
+        return Result.success(vo);
+    }
+
+
+    @Transactional
+    @Override
+    public Result<ChatSessionVO> createSession(Long senderId, Long receiverId, Long orderId) throws Exception {
+        Long conversationId;
+
+        // 1. 如果未指定客服，真正创建时再分配
+        if (receiverId == null) {
+            Long csId = allocateCustomerService(senderId);
+            if (csId == null) {
+                return Result.fail(503, "暂无可用客服");
+            }
+            receiverId = csId;
+        } else {
+            // 2. 如果指定客服，则这时才真正尝试占用该客服
+            boolean ok = bindSpecifiedCustomerService(senderId, receiverId);
+            if (!ok) {
+                // 指定客服不可用，则重新分配
+                Long csId = allocateCustomerService(senderId);
+                if (csId == null) {
+                    return Result.fail(503, "暂无可用客服");
+                }
+                receiverId = csId;
+            }
+        }
+
+        // 3. 创建前再查一次，避免重复创建
+        conversationId = findExistingConversationId(senderId, receiverId);
 
         if (conversationId == null) {
-            // 如果不存在，创建新会话
             Conversation newConversation = new Conversation();
-            newConversation.setType(1); // 1: 私聊
+            newConversation.setType(1);
             if (orderId != null) {
                 newConversation.setOrderId(orderId);
             }
             newConversation.setCurrentCsId(receiverId);
             newConversation.setLastMessageTime(LocalDateTime.now());
-            // 新会话暂无最后消息内容，可留空或设为"会话已创建"
 
             conversationMapper.insert(newConversation);
             conversationId = newConversation.getId();
 
-            // 3. 初始化会话成员 (必须插入两条记录：发送者和接收者)
             initConversationMembers(conversationId, senderId, receiverId);
         } else {
-            // 4. 如果会话已存在，可选：更新 last_message_time 表示“重新激活”
-            Conversation existingConv = conversationMapper.selectById(conversationId);
-            if (existingConv != null) {
-                existingConv.setLastMessageTime(LocalDateTime.now());
-                conversationMapper.updateById(existingConv);
-            }
+            // 已存在则补齐成员关系
+            initConversationMembers(conversationId, senderId, receiverId);
         }
 
-        // 5. 获取历史消息 (复用你已有的 getHistory 方法)
-        // lastId 为 null 表示获取最新的 20 条
-        List<ChatMessage> historyMessages = getHistory(conversationId, null);
-
-        // 6. 组装返回对象
         ChatSessionVO vo = new ChatSessionVO();
+        Users users = userMapper.selectById(receiverId);
+
         vo.setConversationId(String.valueOf(conversationId));
-        vo.setMessages(historyMessages);
+        vo.setMessages(Collections.emptyList());
         vo.setReceiverId(receiverId);
+        vo.setTargetUserInfo(users);
 
         return Result.success(vo);
-
-
     }
 
     @Override
@@ -577,6 +535,147 @@ public class ChatServiceImpl implements ChatService {
         return conversationMapper.ExistingConversationId(senderId,receiverId);
     }
 
+
+    /**
+     * 判断是否有会话
+     */
+    private Conversation ensureConversationExists(ChatMessage message, String i) {
+        Long conversationId = message.getConversationId();
+
+        if (conversationId != null) {
+            Conversation conversation = conversationMapper.selectById(conversationId);
+            if (conversation != null) {
+                // 同步当前客服给 message，后面占用逻辑要用
+                if (i==null){
+                    message.setReceiverId(conversation.getCurrentCsId());
+                }
+
+                return conversation;
+            }
+        }
+
+        // conversationId 不存在或查不到，再尝试按 senderId + receiverId 查
+        Long senderId = message.getSenderId();
+        Long receiverId = message.getReceiverId();
+
+        if (receiverId != null) {
+            Long existingId = findExistingConversationId(senderId, receiverId);
+            if (existingId != null) {
+                Conversation conversation = conversationMapper.selectById(existingId);
+                message.setConversationId(existingId);
+                message.setReceiverId(conversation.getCurrentCsId());
+                initConversationMembers(existingId, senderId, conversation.getCurrentCsId());
+                return conversation;
+            }
+        }
+
+        // 真没有会话，先创建一个“空壳会话”
+        Conversation newConversation = new Conversation();
+        newConversation.setType(1);
+        newConversation.setCurrentCsId(receiverId); // 可能先为空，后面占用时再补
+        newConversation.setLastMessageTime(LocalDateTime.now());
+
+        conversationMapper.insert(newConversation);
+
+        Long newConversationId = newConversation.getId();
+        message.setConversationId(newConversationId);
+
+        if (senderId != null) {
+            insertMemberIfNotExists(newConversationId, senderId);
+        }
+        if (receiverId != null) {
+            insertMemberIfNotExists(newConversationId, receiverId);
+        }
+
+        return newConversation;
+    }
+
+    /**
+     * 判断是客服是否被占用
+     */
+    private void ensureCustomerServiceOccupied(Conversation conversation, ChatMessage message) throws Exception {
+        Long senderId = message.getSenderId();
+        Long currentCsId = conversation.getCurrentCsId();
+
+        RMap<String, String> csMap = redissonClient.getMap(CUSTOMER_SERVICE);
+        String boundCs = csMap.get(String.valueOf(senderId));
+
+        // 1. 已经绑定到当前会话客服，且客服在线，则认为已占用
+        if (boundCs != null && currentCsId != null && boundCs.equals(String.valueOf(currentCsId)) && isUserOnline(currentCsId)) {
+            message.setReceiverId(currentCsId);
+            return;
+        }
+
+        Long finalCsId = currentCsId;
+
+        // 2. 会话里有客服，优先尝试重新占用这个客服
+        if (finalCsId != null) {
+            boolean ok = bindSpecifiedCustomerService(senderId, finalCsId);
+            if (!ok) {
+                finalCsId = null;
+            }
+        }
+
+        // 3. 原客服不可用，则重新分配
+        if (finalCsId == null) {
+            finalCsId = allocateCustomerService(senderId);
+            if (finalCsId == null) {
+                throw new RuntimeException("暂无可用客服");
+            }
+        }
+
+        // 4. 如果客服发生变化，要更新会话
+        if (!Objects.equals(conversation.getCurrentCsId(), finalCsId)) {
+            conversation.setCurrentCsId(finalCsId);
+            conversationMapper.updateById(conversation);
+        }
+
+        // 5. 同步 message 和成员关系
+        message.setReceiverId(finalCsId);
+        insertMemberIfNotExists(conversation.getId(), senderId);
+        insertMemberIfNotExists(conversation.getId(), finalCsId);
+    }
+
+    /**
+     * 指定客服时，真正创建会话才去占用该客服
+     */
+    private boolean bindSpecifiedCustomerService(Long senderId, Long receiverId) {
+        String lua =
+                "local res=redis.call('ZSCORE',KEYS[1],ARGV[1]);" +
+                        "if not res then return 1 end;" +
+                        "local manualStatus = redis.call('HGET', KEYS[3], ARGV[1]);" +
+                        "if manualStatus == '0' then return 1 end;" +
+                        "if tonumber(res) >= tonumber(ARGV[3]) then return 1 end;" +
+                        "redis.call('ZINCRBY',KEYS[1],1,ARGV[1]);" +
+                        "redis.call('HSET',KEYS[2],ARGV[2],ARGV[1]);" +
+                        "return 0";
+
+        Object[] value = { receiverId, senderId, MAX_LOAD };
+
+        List<Object> list = new ArrayList<>();
+        list.add(CS_QUEUE_KEY);
+        list.add(CUSTOMER_SERVICE);
+        list.add(CS_ACCEPT_STATUS_KEY);
+
+        RScript script = redissonClient.getScript();
+        Object result = script.eval(
+                RScript.Mode.READ_WRITE,
+                lua,
+                RScript.ReturnType.VALUE,
+                list,
+                value
+        );
+
+        int code = 0;
+        if (result instanceof Integer) {
+            code = (Integer) result;
+        } else if (result instanceof Long) {
+            code = ((Long) result).intValue();
+        }
+
+        return code == 0;
+    }
+
     //分配客服
     public Long allocateCustomerService(Long senderId) throws Exception {
         RScript script = redissonClient.getScript();
@@ -664,6 +763,10 @@ public class ChatServiceImpl implements ChatService {
     }
 
     private void insertMemberIfNotExists(Long conversationId, Long userId) {
+        if (conversationId == null || userId == null) {
+            return;
+        }
+
         // 先检查是否已存在，避免并发重复插入
         ConversationMember existing = conversationMemberMapper.selectOne(
                 new LambdaQueryWrapper<ConversationMember>()

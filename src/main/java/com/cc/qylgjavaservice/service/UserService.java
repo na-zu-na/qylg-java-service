@@ -32,4 +32,6 @@ public interface UserService {
     Result<Void> resetPassword(CreateUserDTO users);
 
     Result<Void> deleteAccount(Long accountId);
+
+    Result<Void> adminLogout();
 }

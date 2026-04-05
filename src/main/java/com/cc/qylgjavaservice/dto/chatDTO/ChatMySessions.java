@@ -16,9 +16,9 @@ public class ChatMySessions {
     //0表示离线，1表示在线
     private Integer onlineStatus;
 
-    @JsonFormat(pattern = "YYYY-MM-DD hh-mm-ss")
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm")
     private LocalDateTime lastMessageTime;
-    @JsonFormat(pattern = "YYYY-MM-DD hh-mm-ss")
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm")
     private LocalDateTime createdAt;
 
     private String lastMessage;

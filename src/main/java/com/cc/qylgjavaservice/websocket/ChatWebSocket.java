@@ -195,6 +195,8 @@ public class ChatWebSocket {
         resp.put("type", "CHAT");
         resp.put("messageId", chatMessage.getId().toString());
         resp.put("content", message.getContent());
+        resp.put("createdAt",message.getCreatedAt());
+        resp.put("senderId",message.getSenderId());
         Long chatMessageConversationId = chatMessage.getConversationId();
         if (!Objects.equals(chatMessageConversationId, message.getConversationId())){
             message.setConversationId(chatMessageConversationId);

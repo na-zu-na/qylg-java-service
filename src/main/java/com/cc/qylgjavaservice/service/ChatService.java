@@ -9,9 +9,11 @@ import java.util.List;
 
 public interface ChatService {
 
-    ChatMessage sendMessage(ChatMessage message);
+    ChatMessage sendMessage(ChatMessage message) throws Exception;
 
-    Result<ChatSessionVO> getOrCreateSession(Long senderId,Long receiverId,Long orderId) throws Exception;
+    Result<ChatSessionVO> getSession(Long senderId, Long receiverId, Long orderId);
+
+    Result<ChatSessionVO> createSession(Long senderId,Long receiverId,Long orderId) throws Exception;
 
     void ackMessage(Long messageId);
 

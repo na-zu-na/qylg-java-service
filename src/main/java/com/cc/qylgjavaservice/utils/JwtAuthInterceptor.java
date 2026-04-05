@@ -65,6 +65,7 @@ public class JwtAuthInterceptor implements HandlerInterceptor {
         // 4. 获取用户信息
         Long userId = jwtUtil.getUserId(token);
         request.setAttribute("CURRENT_USER_ID", userId);
+        request.setAttribute("TOKEN",token);
 
         // 5. 刷新 Redis 过期时间（滑动过期）
         if (adminExists) {

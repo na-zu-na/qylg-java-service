@@ -43,6 +43,7 @@
                  INNER JOIN conversation_members cm_user
                             ON cm_user.conversation_id = c.id
                                 AND cm_user.user_id != cm_cs.user_id
+                                AND cm_user.role = 2
                  LEFT JOIN users u ON cm_user.user_id = u.id
                  LEFT JOIN users cs ON cm_cs.user_id = cs.id
         WHERE cm_cs.user_id = #{currentUserId}
