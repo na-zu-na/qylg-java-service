@@ -1,105 +1,237 @@
-# 项目 README
+# qylg-java-service
 
-## 项目简介
-本项目是一个基于 Spring Boot 4 的全栈电商与即时通讯系统，集成了微信登录、商品搜索、订单管理、定制服务及高可靠 IM 聊天功能。系统采用 Elasticsearch + MySQL 双引擎架构，利用 Redisson 实现高性能缓存与分布式锁，并通过 WebSocket + Redis 构建毫秒级即时通讯能力。
+基于 Spring Boot 4 的后端服务，整合了以下几类能力：
 
----
+- 商品商城：普通商品、定制商品、购物车、订单、评价
+- 内容社区：文章发布、发现页、文章搜索、评论、点赞
+- 客服聊天：WebSocket 实时会话、客服分配、会话列表、导出聊天记录
+- 用户与后台：微信登录、后台登录、账号管理、用户状态管理
+- 基础设施：PostgreSQL、Redis、Elasticsearch、Cloudflare R2
 
-## 核心功能模块
+## 项目特点与亮点
 
-### 1. 用户认证与安全
-- **微信 OAuth2.0 登录**：完整实现授权码模式，自动注册/登录，JWT Token 生成与黑名单机制（Redis）。
-- **全局鉴权拦截器**：基于 `HandlerInterceptor` 的 Token 校验，支持 Bearer 格式解析与上下文用户信息透传。
-- **文件上传**：集成 Cloudflare R2 对象存储，支持头像上传、UUID 防重命名及流式传输。
+### 业务特点
 
-### 2. 商品与搜索系统
-- **多级混合搜索架构**：
-    - **ES 召回**：支持标题短语优先匹配（权重 10.0）、拼音容错搜索（`title.pinyin`）、多字段加权（标题>锚文本>内容）。
-    - **DB 回捞**：基于 ES 返回的 ID 列表批量加载完整商品详情，内存保序重组确保相关性排序不乱。
-    - **兜底策略**：ES 故障或无结果时自动降级为 MySQL `LIKE` 模糊查询。
-- **智能推荐**：融合随机打乱与销量热门标记，支持 Redis 缓存预热与动态失效。
-- **定制商品**：支持风格/材质多对多关联查询（PostgreSQL 数组聚合），预算自然语言解析（如“500 以内”转为区间查询）。
+- 不是单一商城接口，而是把商品交易、内容社区和在线客服整合在一个系统里
+- 同时支持普通商品和定制商品，两套业务链路并存
+- 从内容种草、商品浏览、下单购买到售后沟通，形成了完整业务闭环
+- 既有用户侧能力，也有后台运营和管理能力
 
-### 3. 订单与交易闭环
-- **高精度金额计算**：全程使用 `BigDecimal`，后端权威计算总价防篡改。
-- **快照机制**：订单明细锁定下单瞬间的商品单价，保障交易公平性。
-- **聚合查询优化**：利用 PostgreSQL `json_agg` 一次性组装订单主表 + 明细列表，消除 N+1 查询问题。
-- **定制订单**：支持非结构化需求解析（颜色/图案 JSONB 存储），状态机驱动生命周期管理。
+### 核心亮点
 
-### 4. 高可靠即时通讯 (IM)
-- **WebSocket 全双工通信**：支持用户 - 客服实时消息推送，会话自动创建与历史消息回溯。
-- **智能客服路由**：
-    - **负载均衡**：基于 Redis ZSet 实现最小负载分配算法。
-    - **熔断迁移**：指定客服繁忙/离线时自动无缝切换至空闲客服，保留历史会话上下文。
-- **可靠投递机制 (At-Least-Once)**：
-    - **ACK 确认**：客户端回执驱动的状态流转。
-    - **指数退避重试**：Redis 延迟队列（ZSet）+ Lua 脚本原子调度，支持 5 次超时重推。
-    - **死信归档**：重试耗尽后标记失败并告警，防止消息丢失。
+- 搜索能力完整：商品和文章都接入了 Elasticsearch，同时保留数据库兜底查询，兼顾搜索体验和系统可用性
+- Redis 使用深入：不仅用于热点缓存，还承担登录态、Token 黑名单、客服分配、在线状态、消息重试等关键职责
+- 客服聊天模块完整：不只是 WebSocket 收发消息，还包括会话创建、客服分配、未读数、已读处理、聊天导出和重试机制
+- 定制业务建模清晰：围绕风格、材质、预算、图片、报价等定制场景字段进行了单独设计，不是把定制逻辑硬塞进普通商品表
+- 后台能力成体系：支持商品、订单、文章、用户、系统账号等多类管理接口
 
-### 5. 性能优化亮点
-- **缓存策略**：Cache Aside 模式，空值防御防穿透，动态 Key 隔离不同业务场景。
-- **数据库特性最大化**：
-    - PostgreSQL `JSONB` 存储复杂字段（定制需求/颜色列表）。
-    - SQL 层聚合统计（订单总价/数量），避免应用层内存累加。
-- **并发控制**：Redis 分布式锁（Lua 脚本）解决客服分配竞态条件，双重检查锁定处理用户重复注册。
+### 关键技术点
 
----
+- 统一鉴权：通过 JWT 拦截 `/api/**` 和 `/admin/**`，并结合 Redis 管理登录态与黑名单，实现可失效、可登出的令牌机制
+- 搜索分层设计：ES 优先负责召回和排序，数据库负责兜底，降低外部搜索组件故障对主流程的影响
+- PostgreSQL JSONB 建模：用于图片、颜色、图案等非结构化字段，适合定制化业务扩展
+- Redis + Lua 原子分配：客服分配过程通过 Lua 脚本保证原子性，避免并发下重复分配和负载不准
+- ACK 重试机制：聊天消息发送后进入确认与延迟重试流程，提升实时消息投递的可靠性
+- 缓存策略明确：热门文章、推荐商品等热点数据进入 Redis，减少数据库与搜索引擎压力
+
+### 项目价值
+
+- 适合作为“电商 + 内容 + IM 客服”一体化后端项目
+- 既能体现常规 CRUD 和后台管理能力，也能体现搜索、缓存、即时通信、并发控制等进阶能力
 
 ## 技术栈
-| 类别 | 技术选型                                |
-| :--- |:------------------------------------|
-| **后端框架** | Spring Boot 4, Spring MVC           |
-| **数据库** | PostgreSQL (JSONB/数组聚合)      |
-| **搜索引擎** | Elasticsearch (全文检索/拼音分词)           |
-| **缓存/中间件** | Redis (Redisson 客户端), Cloudflare R2 |
-| **通讯协议** | WebSocket, RESTful API              |
-| **安全认证** | JWT, OAuth2.0 (微信)                  |
-| **ORM 工具** | MyBatis-Plus (LambdaQueryWrapper)   |
-| **工具库** | Lombok, Jackson, AWS SDK v2         |
 
----
+- Java 17
+- Spring Boot 4.0.3
+- Spring MVC
+- MyBatis-Plus
+- PostgreSQL
+- Redis
+- Redisson
+- Elasticsearch
+- WebSocket
+- Thymeleaf
+- JWT
+- AWS SDK v2 for S3-compatible R2
+- Lombok / Fastjson2 / Hutool
 
-## 快速开始
+## 当前模块
 
-### 环境要求
+### 1. 用户与鉴权
+
+- `POST /auth/wechat-login`：微信登录
+- `POST /admin/login`：后台账号登录
+- `POST /admin/logout`：后台登出
+- `/api/**` 与 `/admin/**` 默认走 JWT 拦截
+- 鉴权头格式：`Authorization: Bearer <token>`
+- Redis 中维护用户/管理员登录态，以及 token 黑名单
+
+### 2. 商品商城
+
+- 商城首页推荐与热门商品
+- 普通商品搜索、详情、评价
+- 定制商品列表、详情、模板配置
+- 购物车新增与查询
+- 普通订单创建、列表、详情、确认收货、评价
+- 定制订单创建、列表、收货、确认、报价、图片补充
+- 后台商品管理、商品上下架、商品配置项管理
+
+相关接口前缀：
+
+- `/shop/**`
+- `/api/cart/**`
+- `/api/order/**`
+
+### 3. 内容社区
+
+- 文章列表
+- 热门文章
+- 发现页分类内容
+- 文章详情
+- 文章发布
+- 我的文章
+- 文章删除
+- 文章点赞
+- 文章评论
+- 管理端文章状态管理
+- 文章 ES 搜索
+
+相关接口前缀：
+
+- `/articles`
+- `/discover/**`
+- `/api/articles-detail`
+- `/api/article/post`
+- `/api/articles/{id}/like`
+- `/api/articles/comments`
+- `/admin/articles`
+
+### 4. 在线客服聊天
+
+- WebSocket 接入端点：`/ws/chat/{userId}`
+- 会话查询与创建
+- 客服会话列表
+- 客服工作台
+- 客服在线状态与接待状态
+- 会话已读处理
+- 聊天记录导出为 HTML
+- Redis + Lua 做客服最小负载分配
+- ACK 重试队列保证消息至少投递一次
+
+相关接口前缀：
+
+- `/api/chat/**`
+
+### 5. 文件上传
+
+- `POST /api/upload/avatar`
+- 使用 Cloudflare R2 作为对象存储
+
+## 项目结构
+
+```text
+src/main/java/com/cc/qylgjavaservice
+├─ config        Spring / MyBatis / Redis / WebSocket 配置
+├─ controller    HTTP 接口
+├─ service       业务接口与实现
+├─ mapper        MyBatis Mapper
+├─ entity        实体定义
+├─ dto           接口入参与出参
+├─ search        Elasticsearch Repository
+├─ utils         JWT、上下文、Redis 常量等工具
+└─ websocket     WebSocket 聊天处理
+
+src/main/resources
+├─ application.yaml
+├─ db/table.sql
+├─ mapper/*.xml
+├─ script/*.lua
+└─ templates/chat.html
+```
+
+## 运行环境
+
+启动前至少准备以下组件：
+
 - JDK 17+
-- MySQL 8.0+ / PostgreSQL 14+
-- Redis 5.0+
-- Elasticsearch 9.x+
+- Maven 3.9+
+- PostgreSQL 14+
+- Redis 6+
+- Elasticsearch 8/9
 
-### 安装步骤
-1. **克隆代码**
-   ```bash
-   git clone <repository-url>
-   cd <project-directory>
-   ```
+## 配置说明
 
-2. **配置环境变量**
-   新增 `application.yml` 中的数据库连接、Redis 地址、微信 AppID/Secret 及 R2 存储凭证。
+项目当前使用 [application.yaml] 保存配置，主要包括：
 
-3. **启动服务**
-   ```bash
-   mvn spring-boot:run
-   ```
+- PostgreSQL 连接
+- Redis 连接
+- Elasticsearch 连接
+- 微信 `appID` / `appSecret`
+- JWT 密钥与过期时间
+- Cloudflare R2 账号、Bucket、Endpoint
 
-4. **初始化数据**
-   执行 `schema.sql` 创建表结构，导入 `data.sql` 初始商品与测试用户数据。
+建议你在正式环境里做两件事：
 
----
+1. 不要把真实密钥继续保留在仓库内。
+2. 改为环境变量、启动参数或外部配置中心注入。
 
-## 目录结构
+## 本地启动
+
+### 1. 初始化数据库
+
+执行表结构脚本：
+
+- [src/main/resources/db/table.sql]
+
+项目使用 PostgreSQL，建库后把 `application.yaml` 中的数据源改成你本机的连接信息。
+
+### 2. 启动依赖服务
+
+需要先启动：
+
+- PostgreSQL
+- Redis
+- Elasticsearch
+
+如果你要测试上传功能，还需要准备 Cloudflare R2 或兼容的 S3 服务。
+
+### 3. 启动项目
+
+```bash
+mvn spring-boot:run
 ```
-src/main/java/com/example/project
-├── config          # 配置类 (Redisson, WebSocket, Swagger)
-├── controller      # REST 接口入口
-├── service         # 业务逻辑实现 (含缓存/事务控制)
-├── mapper          # MyBatis 数据访问层
-├── entity          # 数据库实体映射
-├── dto             # 数据传输对象
-├── utils            # 工具类 (JWT, UUID, BigDecimal 处理)
-└── interceptor     # 全局鉴权拦截器
-└── websocket      # websocket关键类
-└── search         # es repository
 
+或先打包再运行：
+
+```bash
+mvn clean package -DskipTests
+java -jar target/qylg-java-service-0.0.1-SNAPSHOT.jar
 ```
+
+## 搜索与缓存说明
+
+- 商品和文章都接入了 Elasticsearch 搜索
+- 搜索失败时，商品与文章都存在数据库兜底查询逻辑
+- 热门文章、推荐商品等数据会进入 Redis 缓存
+- 客服分配、在线状态、ACK 重试依赖 Redis 数据结构与 Lua 脚本
+
+## 数据库核心表
+
+表结构脚本中已经包含当前主要业务表，例如：
+
+- `users`
+- `products`
+- `product_reviews`
+- `shopping_cart`
+- `orders`
+- `order_items`
+- `custom_orders`
+- `articles`
+- `article_comments`
+- `article_likes`
+- `conversations`
+- `conversation_members`
+- `chat_messages`
+- `styles`
+- `materials`
 
