@@ -15,7 +15,7 @@ public interface ChatService {
 
     Result<ChatSessionVO> createSession(Long senderId,Long receiverId,Long orderId) throws Exception;
 
-    void ackMessage(Long messageId);
+    void ackMessage(Long messageId) throws Exception;
 
     void addAckRetryTask(Long id, int i);
 
@@ -28,4 +28,6 @@ public interface ChatService {
     Result<Void> setStaffAcceptStatus(Long agentId, Boolean canAccept);
 
     Result<List<ChatMySessions>> getWorkBench();
+
+    Result<Void> readMessage(Long sessionId);
 }

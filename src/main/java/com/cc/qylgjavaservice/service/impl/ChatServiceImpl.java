@@ -179,7 +179,7 @@ public class ChatServiceImpl implements ChatService {
     }
 
     @Override
-    public void ackMessage(Long messageId) {
+    public void ackMessage(Long messageId) throws Exception {
         ChatMessage msg = new ChatMessage();
         msg.setId(messageId);
         msg.setStatus(2); // 已送达
@@ -191,6 +191,31 @@ public class ChatServiceImpl implements ChatService {
         //清理对应的重试次数计数器
         RBucket<Object> bucket = redissonClient.getBucket(ACK_RETRY_COUNT+messageId);
         bucket.delete();
+
+        //添加未读消息数
+        ChatMessage chatMessage = chatMessageMapper.selectById(messageId);
+        if (chatMessage==null){
+            throw new Exception("没有该消息");
+        }
+
+        Long receiverId = chatMessage.getReceiverId();
+        Long conversationId = chatMessage.getConversationId();
+        Users users = userMapper.selectById(receiverId);
+
+        if (users!=null){
+            ConversationMember conversationMember = conversationMemberMapper.selectOne(new LambdaQueryWrapper<ConversationMember>()
+                    .eq(ConversationMember::getConversation_id,conversationId)
+                    .eq(ConversationMember::getUser_id,receiverId));
+
+            if (conversationMember==null){
+                throw new Exception("没有消息成员");
+            }
+
+            int unreadCount = conversationMember.getUnread_count();
+            unreadCount++;
+            conversationMember.setUnread_count(unreadCount);
+            conversationMemberMapper.updateById(conversationMember);
+        }
 
         chatMessageMapper.updateById(msg);
     }
@@ -517,6 +542,21 @@ public class ChatServiceImpl implements ChatService {
 
 
         return Result.success(chatMySessions);
+    }
+
+    @Override
+    public Result<Void> readMessage(Long sessionId) {
+        Long currentUserId = UserContext.getCurrentUserId();
+        ConversationMember conversationMember = conversationMemberMapper.selectOne(new LambdaQueryWrapper<ConversationMember>()
+                .eq(ConversationMember::getConversation_id, sessionId)
+                .eq(ConversationMember::getUser_id, currentUserId));
+        if (conversationMember==null){
+            return Result.fail(404,"没找到会话member");
+        }
+        conversationMember.setUnread_count(0);
+        conversationMemberMapper.updateById(conversationMember);
+
+        return Result.success();
     }
 
     //查询历史记录

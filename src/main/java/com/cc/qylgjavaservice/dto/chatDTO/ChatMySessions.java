@@ -13,6 +13,8 @@ public class ChatMySessions {
     private Long userId;
     private String userName;
 
+    private Integer unreadCount;
+
     //0表示离线，1表示在线
     private Integer onlineStatus;
 

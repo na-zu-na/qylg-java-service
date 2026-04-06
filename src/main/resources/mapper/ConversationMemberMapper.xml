@@ -30,6 +30,7 @@
     <select id="selectMySessions" resultMap="ChatMySessionsMap">
         SELECT DISTINCT ON (c.id)
             c.id,
+            cm_cs.unread_count,
             cm_user.user_id AS userId,
             COALESCE(u.nick_name, u.user_name, CAST(u.id AS text)) AS userName,
             c.last_message_time AS lastMessageTime,

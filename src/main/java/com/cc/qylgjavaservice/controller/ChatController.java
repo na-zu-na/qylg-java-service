@@ -57,4 +57,9 @@ public class ChatController {
         return chatService.getWorkBench();
     }
 
+    @PostMapping("/service/sessions/{sessionId}/read")
+    public Result<Void> readMessage(@PathVariable Long sessionId){
+        return chatService.readMessage(sessionId);
+    }
+
 }
