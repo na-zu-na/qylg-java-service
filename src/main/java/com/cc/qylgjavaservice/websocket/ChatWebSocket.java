@@ -184,8 +184,6 @@ public class ChatWebSocket {
         else if ("ACK".equals(type)) {
 
             Long messageId = obj.getLong("messageId");
-            Long conversationId = obj.getLong("conversationId");
-            Long receiverId = obj.getLong("receiverId");
 
             chatService.ackMessage(messageId);
 
