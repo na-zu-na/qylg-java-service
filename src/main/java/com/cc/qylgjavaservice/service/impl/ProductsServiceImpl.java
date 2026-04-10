@@ -8,6 +8,8 @@ import co.elastic.clients.elasticsearch.core.search.Hit;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.cc.qylgjavaservice.dto.AiDTO.AiSearchProductDTO;
+import com.cc.qylgjavaservice.dto.AiDTO.ApiResponse;
 import com.cc.qylgjavaservice.dto.Result;
 import com.cc.qylgjavaservice.dto.productsDTO.*;
 import com.cc.qylgjavaservice.dto.productsDTO.productsSettings.ProductsSettings;
@@ -19,17 +21,18 @@ import org.redisson.api.RedissonClient;
 import org.redisson.codec.JsonJacksonCodec;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Mono;
 import tools.jackson.databind.ObjectMapper;
 
 import java.math.BigDecimal;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 
 import static com.cc.qylgjavaservice.utils.RedisConstants.HOT_PRODUCT_KEY;
 import static com.cc.qylgjavaservice.utils.RedisConstants.PRODUCT_KEY;
@@ -60,6 +63,9 @@ public class ProductsServiceImpl extends ServiceImpl<ProductsMapper,Products> im
 
     @Autowired
     private CProMaterialsMapper cProMaterialsMapper;
+
+    @Autowired
+    private WebClient webClient;
 
     @Override
     public Result<List<ProductsDTO>> getShopRecommend() {
@@ -232,12 +238,14 @@ public class ProductsServiceImpl extends ServiceImpl<ProductsMapper,Products> im
                                     b.minimumShouldMatch("1");
 
                                     // ===== filter 不参与评分 =====
-                                    b.filter(f -> f
-                                            .term(t -> t
-                                                    .field("type")
-                                                    .value(type)
-                                            )
-                                    );
+                                    if (type!=null){
+                                        b.filter(f -> f
+                                                .term(t -> t
+                                                        .field("type")
+                                                        .value(type)
+                                                )
+                                        );
+                                    }
 
                                     b.filter(f -> f
                                             .term(t -> t
@@ -810,6 +818,82 @@ public class ProductsServiceImpl extends ServiceImpl<ProductsMapper,Products> im
         }
 
         return Result.success(dto.getId());
+    }
+
+    @Override
+    public Result<List<Products>> aiSearchProduct(String text) {
+        //请求ai
+        ApiResponse<AiSearchProductDTO> aiSearchProductDTOApiResponse = webClient.post()
+                .uri("/api/parse/product-query")
+                .bodyValue(Map.of("text", text))
+                .retrieve()
+                .onStatus(
+                        HttpStatusCode::is4xxClientError,
+                        response -> response.bodyToMono(String.class)
+                                .flatMap(body -> Mono.error(new RuntimeException("4xx error: " + body)))
+                )
+                .onStatus(
+                        HttpStatusCode::is5xxServerError,
+                        response -> response.bodyToMono(String.class)
+                                .flatMap(body -> Mono.error(new RuntimeException("5xx error: " + body)))
+                )
+                .bodyToMono(new ParameterizedTypeReference<ApiResponse<AiSearchProductDTO>>() {})
+                .block();
+
+        AiSearchProductDTO result = null;
+        if (aiSearchProductDTOApiResponse != null) {
+            result = aiSearchProductDTOApiResponse.getData();
+        }
+
+        if (result == null) {
+            return Result.fail(500, "AI解析结果为空");
+        }
+
+        String keyword = result.getKeyword();
+        String type = result.getType();
+        String sortKey=result.getSort_by();
+        BigDecimal priceMin = result.getPrice_min();
+        BigDecimal priceMax = result.getPrice_max();
+        String purpose = result.getPurpose();
+
+        //搜索商品
+        Result<List<Products>> listResult = searchProducts(keyword, type, sortKey, "desc");
+        if (listResult == null || listResult.getData() == null || listResult.getData().isEmpty()){
+            return Result.fail(404,"没有找到数据");
+        }
+
+        List<Products> data = listResult.getData();
+        ArrayList<Products> arrayList=new ArrayList<>();
+
+        data.forEach(i -> {
+            if (i == null) {
+                return;
+            }
+
+            if (Objects.equals(i.getType(), "mass")) {
+                BigDecimal price = i.getPrice();
+                if (price != null
+                        && (priceMin == null || price.compareTo(priceMin) >= 0)
+                        && (priceMax == null || price.compareTo(priceMax) <= 0)) {
+                    arrayList.add(i);
+                }
+            } else {
+                BigDecimal minPrice = i.getMinPrice();
+                BigDecimal maxPrice = i.getMaxPrice();
+
+                if (minPrice != null && maxPrice != null) {
+                    boolean hasIntersection =
+                            (priceMax == null || minPrice.compareTo(priceMax) <= 0)
+                                    && (priceMin == null || maxPrice.compareTo(priceMin) >= 0);
+
+                    if (hasIntersection) {
+                        arrayList.add(i);
+                    }
+                }
+            }
+        });
+
+        return Result.success(arrayList);
     }
 
     private static void validateParam(Products dto) {

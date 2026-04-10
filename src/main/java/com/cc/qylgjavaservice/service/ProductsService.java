@@ -43,4 +43,6 @@ public interface ProductsService {
     Result<AddCustomProductsDTO> getCustomProductDetail(Long templateId);
 
     Result<Long> editCustomProduct(AddCustomProductsDTO dto);
+
+    Result<List<Products>> aiSearchProduct(String text);
 }
