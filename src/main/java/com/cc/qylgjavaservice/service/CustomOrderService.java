@@ -1,6 +1,8 @@
 package com.cc.qylgjavaservice.service;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.cc.qylgjavaservice.dto.AiDTO.AiCustomProductVO;
+import com.cc.qylgjavaservice.dto.AiDTO.AiSearchRequestDTO;
 import com.cc.qylgjavaservice.dto.OrderDTO.*;
 import com.cc.qylgjavaservice.dto.Result;
 import com.cc.qylgjavaservice.entity.CustomOrder;
@@ -28,4 +30,6 @@ public interface CustomOrderService {
     Result<Void> updateCustomPic(Long customOrderId, CustomPicDTO url);
 
     Result<Void> updateCustomQuote(Long customOrderId, BigDecimal quote);
+
+    Result<AiCustomProductVO> aiCustomProduct(AiSearchRequestDTO dto);
 }

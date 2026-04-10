@@ -1,8 +1,10 @@
 package com.cc.qylgjavaservice.controller;
 
+import com.cc.qylgjavaservice.dto.AiDTO.AiCustomProductVO;
 import com.cc.qylgjavaservice.dto.AiDTO.AiSearchRequestDTO;
 import com.cc.qylgjavaservice.dto.Result;
 import com.cc.qylgjavaservice.entity.Products;
+import com.cc.qylgjavaservice.service.CustomOrderService;
 import com.cc.qylgjavaservice.service.ProductsService;
 import jakarta.annotation.Resource;
 import org.springframework.web.bind.annotation.*;
@@ -15,8 +17,16 @@ public class AiController {
     @Resource
     private ProductsService productsService;
 
+    @Resource
+    private CustomOrderService customOrderService;
+
     @PostMapping("/search/product")
     public Result<List<Products>> aiSearchProduct(@RequestBody AiSearchRequestDTO dto){
         return productsService.aiSearchProduct(dto.getText());
+    }
+
+    @PostMapping("/custom/product")
+    public Result<AiCustomProductVO> aiCustomProduct(@RequestBody AiSearchRequestDTO dto){
+        return customOrderService.aiCustomProduct(dto);
     }
 }

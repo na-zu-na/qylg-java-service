@@ -4,8 +4,10 @@ package com.cc.qylgjavaservice.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.cc.qylgjavaservice.dto.AiDTO.*;
 import com.cc.qylgjavaservice.dto.OrderDTO.*;
 import com.cc.qylgjavaservice.dto.Result;
+import com.cc.qylgjavaservice.dto.productsDTO.ProductsCustomDetailDTO;
 import com.cc.qylgjavaservice.entity.Conversation;
 import com.cc.qylgjavaservice.entity.CustomOrder;
 import com.cc.qylgjavaservice.entity.Users;
@@ -13,14 +15,20 @@ import com.cc.qylgjavaservice.mapper.ConversationMapper;
 import com.cc.qylgjavaservice.mapper.CustomOrderMapper;
 import com.cc.qylgjavaservice.mapper.UserMapper;
 import com.cc.qylgjavaservice.service.CustomOrderService;
+import com.cc.qylgjavaservice.service.ProductsService;
 import com.cc.qylgjavaservice.utils.UserContext;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.List;
+import java.util.*;
+import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -34,6 +42,12 @@ public class CustomOrderServiceImpl extends ServiceImpl<CustomOrderMapper,Custom
 
     @Autowired
     private ConversationMapper conversationMapper;
+
+    @Autowired
+    private ProductsService productsService;
+
+    @Autowired
+    private WebClient webClient;
 
     // 预算正则匹配：数字-数字
     private static final Pattern RANGE_PATTERN = Pattern.compile("(\\d+)-(\\d+)");
@@ -285,6 +299,139 @@ public class CustomOrderServiceImpl extends ServiceImpl<CustomOrderMapper,Custom
         }
 
         return Result.success();
+    }
+
+    @Override
+    public Result<AiCustomProductVO> aiCustomProduct(AiSearchRequestDTO dto) {
+        Long productId = dto.getProductId();
+        if (productId == null) {
+            return Result.fail(400, "productId不能为空");
+        }
+
+        if (dto.getText() == null || dto.getText().trim().isEmpty()) {
+            return Result.fail(400, "需求描述不能为空");
+        }
+
+        // 查询商品信息
+        Result<ProductsCustomDetailDTO> productCustomsDetail = productsService.getProductCustomsDetail(productId);
+        ProductsCustomDetailDTO data = productCustomsDetail.getData();
+        if (data == null) {
+            return Result.fail(404, "没找到商品");
+        }
+
+        // 用途候选
+        List<String> purposeList = Arrays.asList(
+                "定制礼品", "家居装饰", "艺术陈设", "商务赠礼", "其他"
+        );
+
+        // 风格候选
+        List<String> styleList = data.getStyleList();
+        if (styleList == null || styleList.isEmpty()) {
+            styleList = Arrays.asList(
+                    "传统国风", "现代简约", "复古雅致", "混搭创意", "参考案例定制"
+            );
+        }
+
+        // 材质候选
+        List<String> materialList = data.getMaterialList();
+        if (materialList == null || materialList.isEmpty()) {
+            materialList = Arrays.asList(
+                    "木胎 + 髹漆 + 嵌银", "金属嵌银", "漆艺为主", "根据建议选择"
+            );
+        }
+
+        // 预算候选
+        List<String> budgetRangeList = Arrays.asList(
+                "500以内", "500-1000", "1000-3000", "3000-8000", "8000以上", "暂不确定"
+        );
+
+        // 颜色候选
+        List<String> colorList = Arrays.asList(
+                "朱红", "雅黑", "鎏金", "银白", "木色", "青绿"
+        );
+
+        // 纹样候选
+        List<String> patternList = Arrays.asList(
+                "祥云纹", "水波纹", "花卉纹", "龙纹", "凤纹", "自定义纹样"
+        );
+
+        // 组装 AI 请求参数
+        AiCustomProductDTO aiCustomProductDTO = new AiCustomProductDTO();
+        aiCustomProductDTO.setText(dto.getText().trim());
+        aiCustomProductDTO.setPurposeList(purposeList);
+        aiCustomProductDTO.setStyleList(styleList);
+        aiCustomProductDTO.setMaterialList(materialList);
+        aiCustomProductDTO.setBudgetRangeList(budgetRangeList);
+        aiCustomProductDTO.setColorList(colorList);
+        aiCustomProductDTO.setPatternList(patternList);
+
+        try {
+            ApiResponse<AiCustomProductVO> response = webClient.post()
+                    .uri("/api/ai/custom-product")
+                    .bodyValue(aiCustomProductDTO)
+                    .retrieve()
+                    .onStatus(
+                            HttpStatusCode::is4xxClientError,
+                            clientResponse -> clientResponse.bodyToMono(String.class)
+                                    .flatMap(body -> Mono.error(new RuntimeException("AI服务4xx错误: " + body)))
+                    )
+                    .onStatus(
+                            HttpStatusCode::is5xxServerError,
+                            clientResponse -> clientResponse.bodyToMono(String.class)
+                                    .flatMap(body -> Mono.error(new RuntimeException("AI服务5xx错误: " + body)))
+                    )
+                    .bodyToMono(new ParameterizedTypeReference<ApiResponse<AiCustomProductVO>>() {})
+                    .block();
+
+            if (response == null || response.getData() == null) {
+                return Result.fail(500, "AI返回结果为空");
+            }
+
+            AiCustomProductVO vo = response.getData();
+
+            // 校验 AI 返回结果，只保留候选范围内的数据
+            vo.setPurpose(pickValidValue(vo.getPurpose(), purposeList));
+            vo.setStyle(pickValidValue(vo.getStyle(), styleList));
+            vo.setMaterial(pickValidValue(vo.getMaterial(), materialList));
+            vo.setBudgetRange(pickValidValue(vo.getBudgetRange(), budgetRangeList));
+            vo.setColors(pickValidList(vo.getColors(), colorList));
+            vo.setPatterns(pickValidList(vo.getPatterns(), patternList));
+
+            // size / remark 一般是自由文本，不强校验
+            if (vo.getSize() != null) {
+                vo.setSize(vo.getSize().trim());
+            }
+            if (vo.getRemark() != null) {
+                vo.setRemark(vo.getRemark().trim());
+            }
+
+            return Result.success(vo);
+
+        } catch (Exception e) {
+            log.error("AI智能填写定制订单失败, productId="+productId+", text="+dto.getText()+e);
+            return Result.fail(500, "AI服务调用失败");
+        }
+    }
+
+    //单值校验
+    private String pickValidValue(String value, List<String> candidates) {
+        if (value == null || candidates == null || candidates.isEmpty()) {
+            return null;
+        }
+        return candidates.contains(value) ? value : null;
+    }
+
+    //多值校验
+    private List<String> pickValidList(List<String> values, List<String> candidates) {
+        if (values == null || candidates == null || candidates.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return values.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(candidates::contains)
+                .distinct()
+                .toList();
     }
 
 

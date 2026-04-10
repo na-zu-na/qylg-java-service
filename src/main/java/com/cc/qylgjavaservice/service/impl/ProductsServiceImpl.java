@@ -185,105 +185,119 @@ public class ProductsServiceImpl extends ServiceImpl<ProductsMapper,Products> im
         return Result.success(collect);
     }
 
-    public List<ProductDocument> searchFromEs(String keyword, String type,String sorKey, String sortOrder) {
-
+    public List<ProductDocument> searchFromEs(String keyword, String type, String sortKey, String sortOrder) {
         try {
+            if (keyword == null || keyword.isBlank()) {
+                return List.of();
+            }
+
+            keyword = keyword.trim();
+
+            String finalKeyword = keyword;
+            String finalKeyword1 = keyword;
+            String finalKeyword2 = keyword;
+            String finalKeyword3 = keyword;
+            String finalKeyword4 = keyword;
             SearchResponse<ProductDocument> response = elasticsearchClient.search(s -> {
 
-                // ===== 构建 bool 查询 =====
-                s.index("products_index")
-                        .query(q -> q
-                                .bool(b -> {
+                s.index("products_index_v2")
+                        .query(q -> q.bool(b -> {
 
-                                    // ===== 精准短语匹配（权重最高）=====
-                                    b.should(sh -> sh
-                                            .matchPhrase(mp -> mp
-                                                    .field("title")
-                                                    .query(keyword)
-                                                    .boost(10.0f)
-                                            )
-                                    );
+                            // ===== 过滤条件 =====
+                            if (type != null && !type.isBlank() && !"all".equals(type)) {
+                                b.filter(f -> f
+                                        .term(t -> t
+                                                .field("type")
+                                                .value(type)
+                                        )
+                                );
+                            }
 
-                                    // ===== 第二层：多字段匹配（核心召回）=====
-                                    b.should(sh -> sh
-                                            .multiMatch(mm -> mm
-                                                    .query(keyword)
-                                                    .fields(
-                                                            "title^5",
-                                                            "title.pinyin^3",
-                                                            "anchor^2"
-                                                    )
-                                                    .minimumShouldMatch("60%")   //  别用95%
-                                            )
-                                    );
-
-                                    // ===== 第三层：弱匹配兜底 =====
-                                    b.should(sh -> sh
-                                            .match(m -> m
-                                                    .field("anchor")
-                                                    .query(keyword)
-                                                    .boost(0.5f)
-                                            )
-                                    );
-
-                                    b.should(sh -> sh
-                                            .term(t -> t
-                                                    .field("title.keyword")
-                                                    .value(keyword)
-                                                    .boost(20.0f)
-                                            )
-                                    );
-
-                                    // 至少命中一个 should
-                                    b.minimumShouldMatch("1");
-
-                                    // ===== filter 不参与评分 =====
-                                    if (type!=null){
-                                        b.filter(f -> f
-                                                .term(t -> t
-                                                        .field("type")
-                                                        .value(type)
-                                                )
-                                        );
-                                    }
-
-                                    b.filter(f -> f
-                                            .term(t -> t
-                                                    .field("status")
-                                                    .value(1)
-                                            )
-                                    );
-
-                                    return b;
-                                })
-                        );
-
-                        // ===== 排序逻辑 =====
-                        if ("default".equals(sorKey)) {
-
-                            s.sort(so -> so
-                                    .score(sc -> sc.order(SortOrder.Desc))
-                            );
-
-                        } else {
-
-                            s.sort(so -> so
-                                    .field(f -> f
-                                            .field(sorKey)
-                                            .order("asc".equals(sortOrder) ? SortOrder.Asc : SortOrder.Desc)
+                            b.filter(f -> f
+                                    .term(t -> t
+                                            .field("status")
+                                            .value(1)
                                     )
                             );
 
-                            s.sort(so -> so
-                                    .score(sc -> sc.order(SortOrder.Desc))
+                            // ===== 1. 完全精确匹配：最高权重 =====
+                            b.should(sh -> sh
+                                    .term(t -> t
+                                            .field("title.keyword")
+                                            .value(finalKeyword4)
+                                            .boost(30.0f)
+                                    )
                             );
-                        }
 
-                        return s;
+                            // ===== 2. 标题短语匹配：高权重 =====
+                            b.should(sh -> sh
+                                    .matchPhrase(mp -> mp
+                                            .field("title")
+                                            .query(finalKeyword3)
+                                            .boost(15.0f)
+                                    )
+                            );
+
+                            // ===== 3. 核心召回：标题 + 拼音 =====
+                            b.should(sh -> sh
+                                    .multiMatch(mm -> mm
+                                            .query(finalKeyword2)
+                                            .fields(
+                                                    "title^6",
+                                                    "title.pinyin^3"
+                                            )
+                                            .type(co.elastic.clients.elasticsearch._types.query_dsl.TextQueryType.BestFields)
+                                            .minimumShouldMatch("100%")
+                                            .boost(8.0f)
+                                    )
+                            );
+
+                            // ===== 4. 同义词扩展召回：权重低于核心召回 =====
+                            b.should(sh -> sh
+                                    .match(m -> m
+                                            .field("title.synonym")
+                                            .query(finalKeyword)
+                                            .boost(3.0f)
+                                    )
+                            );
+
+                            // ===== 5. anchor 只做弱辅助，不参与主召回 =====
+                            b.should(sh -> sh
+                                    .match(m -> m
+                                            .field("anchor")
+                                            .query(finalKeyword1)
+                                            .boost(0.3f)
+                                    )
+                            );
+
+                            // 至少命中一个 should
+                            b.minimumShouldMatch("1");
+
+                            return b;
+                        }));
+
+                // ===== 排序逻辑 =====
+                if (sortKey == null || sortKey.isBlank() || "default".equals(sortKey)) {
+                    s.sort(so -> so
+                            .score(sc -> sc.order(SortOrder.Desc))
+                    );
+                } else {
+                    s.sort(so -> so
+                            .field(f -> f
+                                    .field(sortKey)
+                                    .order("asc".equalsIgnoreCase(sortOrder) ? SortOrder.Asc : SortOrder.Desc)
+                            )
+                    );
+
+                    s.sort(so -> so
+                            .score(sc -> sc.order(SortOrder.Desc))
+                    );
+                }
+
+                return s;
 
             }, ProductDocument.class);
 
-            // ===== 解析结果 =====
             return response.hits().hits().stream()
                     .map(Hit::source)
                     .filter(Objects::nonNull)

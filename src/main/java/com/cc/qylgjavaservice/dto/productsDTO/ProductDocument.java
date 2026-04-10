@@ -6,7 +6,7 @@ import org.springframework.data.elasticsearch.annotations.CompletionField;
 import org.springframework.data.elasticsearch.annotations.Document;
 import org.springframework.data.elasticsearch.core.suggest.Completion;
 
-@Document(indexName = "products_index")
+@Document(indexName = "products_index_v2")
 @Data
 public class ProductDocument {
 
